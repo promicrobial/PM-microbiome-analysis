@@ -3,7 +3,7 @@
 #######################################
 #                                     #
 #      Zero-Inflated Model           #
-#        Comparison Tool             #
+#        Comparison Tools             #
 #                                     #
 #######################################
 
