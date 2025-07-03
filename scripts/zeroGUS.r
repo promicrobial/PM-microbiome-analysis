@@ -53,8 +53,20 @@ compareZI <- function(
         models[[fam_name]] <- model
 
         # Calculate fit statistics
-        sim_res <- DHARMa::simulateResiduals(model)
-
+        sim_res <- tryCatch(
+          {
+            DHARMa::simulateResiduals(model, n = 250)
+          },
+          error = function(e) {
+            warning(paste(
+              "Residual simulation failed for",
+              fam_name,
+              ":",
+              e$message
+            ))
+            return(NULL)
+          }
+        )
         fit_stats[[fam_name]] <- list(
           AIC = AIC(model),
           BIC = BIC(model),
