@@ -905,6 +905,41 @@ compareZI <- function(
   return(invisible(result))
 }
 
+#' Create Summary Plots for Zero-Inflated Model Results
+#'
+#' @description
+#' Creates a comprehensive set of diagnostic and summary plots for zero-inflated model results,
+#' including p-value distributions, convergence status, zero proportions, and model fit criteria.
+#'
+#' @param results A list containing the following components:
+#'   \itemize{
+#'     \item adj_results: Data frame with adjusted p-values for different effects
+#'     \item model_summary: Data frame with model convergence and fit information
+#'   }
+#'
+#' @return A list of ggplot objects containing:
+#'   \itemize{
+#'     \item p_values: Distribution of adjusted p-values by effect
+#'     \item convergence: Bar plot of model convergence status
+#'     \item zero_prop: Distribution of zero proportions
+#'     \item fit_criteria: Distribution of AIC and BIC values
+#'     \item error_summary: Summary of error messages (if present)
+#'     \item significant: Bar plot of significant results by effect
+#'     \item combined: Combined plot of all visualizations
+#'   }
+#'
+#' @import ggplot2
+#' @import dplyr
+#' @import patchwork
+#'
+#' @examples
+#' \dontrun{
+#' results <- genZI(outcome, predictors)
+#' plots <- create_summary_plots(results)
+#' print(plots$combined)
+#' }
+#'
+#' @export
 create_summary_plots <- function(results) {
   require(ggplot2)
   require(dplyr)
@@ -1081,6 +1116,26 @@ create_summary_plots <- function(results) {
   return(plots)
 }
 
+#' Create Zero Proportion Plot
+#'
+#' @description
+#' Creates a scatter plot showing the proportion of zeros for each outcome,
+#' colored by model convergence status.
+#'
+#' @param results A list containing model_summary with convergence and zero proportion information
+#'
+#' @return A ggplot object showing zero proportions by outcome, colored by convergence status
+#'
+#' @import ggplot2
+#' @import dplyr
+#'
+#' @examples
+#' \dontrun{
+#' results <- genZI(outcome, predictors)
+#' zero_plot(results)
+#' }
+#'
+#' @export
 zero_plot <- function(results) {
   conv_text <- sprintf(
     "%d/%d models converged (%.1f%%)",
@@ -1119,6 +1174,33 @@ zero_plot <- function(results) {
     )
 }
 
+#' Process DHARMa Diagnostics for a Single Model
+#'
+#' @description
+#' Performs DHARMa diagnostic tests on a single model, including uniformity,
+#' dispersion, outliers, and zero-inflation tests.
+#'
+#' @param model A fitted model object
+#' @param model_id Character string identifying the model
+#'
+#' @return A data frame containing:
+#'   \itemize{
+#'     \item model_id: Model identifier
+#'     \item test: Name of diagnostic test
+#'     \item p.value: P-value from test
+#'     \item warning: Any warnings generated during testing
+#'     \item n_obs: Number of observations
+#'     \item n_zeros: Number of zero values
+#'   }
+#'
+#' @import DHARMa
+#'
+#' @examples
+#' \dontrun{
+#' model_diagnostics <- process_dharma_diagnostics(fitted_model, "model1")
+#' }
+#'
+#' @export
 process_dharma_diagnostics <- function(model, model_id) {
   if (is.null(model)) {
     return(data.frame(
@@ -1217,7 +1299,32 @@ process_dharma_diagnostics <- function(model, model_id) {
   )
 }
 
-# Process models and create summary
+#' Process DHARMa Results for Multiple Models
+#'
+#' @description
+#' Processes DHARMa diagnostic results for multiple models and creates
+#' comprehensive summaries and visualizations.
+#'
+#' @param results List of fitted models to be diagnosed
+#'
+#' @return A list containing:
+#'   \itemize{
+#'     \item complete: Complete diagnostic results for all models
+#'     \item summary: Summary statistics for each diagnostic test
+#'     \item warnings: Summary of warnings by test type
+#'     \item wide_format: Wide format version of diagnostic results
+#'   }
+#'
+#' @import dplyr
+#' @import tidyr
+#'
+#' @examples
+#' \dontrun{
+#' dharma_results <- process_dharma_results(fitted_models)
+#' print(dharma_results$summary)
+#' }
+#'
+#' @export
 process_dharma_results <- function(results) {
   # Process all models
   all_diagnostics <- lapply(seq_along(results), function(i) {
@@ -1271,7 +1378,32 @@ process_dharma_results <- function(results) {
   ))
 }
 
-# Create visualization of results
+#' Plot DHARMa Diagnostic Summary
+#'
+#' @description
+#' Creates a comprehensive visualization of DHARMa diagnostic results,
+#' including p-value distributions, test success rates, and sample size information.
+#'
+#' @param dharma_results Output from process_dharma_results function
+#'
+#' @return A patchwork object combining four plots:
+#'   \itemize{
+#'     \item P-value distributions by test
+#'     \item Proportion of significant tests
+#'     \item Distribution of observation counts
+#'     \item Distribution of zero proportions
+#'   }
+#'
+#' @import ggplot2
+#' @import patchwork
+#'
+#' @examples
+#' \dontrun{
+#' dharma_results <- process_dharma_results(fitted_models)
+#' plot_dharma_summary(dharma_results)
+#' }
+#'
+#' @export
 plot_dharma_summary <- function(dharma_results) {
   require(ggplot2)
   require(patchwork)
