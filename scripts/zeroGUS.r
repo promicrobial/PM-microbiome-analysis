@@ -87,7 +87,7 @@
 #' @importFrom glmmTMB glmmTMB
 #' @importFrom stats p.adjust
 #' @importFrom dplyr arrange
-genZI <- function(outcome, predictors) {
+genZI <- function(outcome, predictors, family = nbinom2) {
   if (!is.matrix(outcome) && !is.data.frame(outcome)) {
     stop("Outcome must be a matrix or data frame")
   }
@@ -148,6 +148,8 @@ genZI <- function(outcome, predictors) {
     if (anyNA(current_outcome)) {
       model_summary$error_message[i] <- "Outcome contains NA values"
       next
+    } else {
+      model_summary$error_message[i] <- "No errors"
     }
 
     # Prepare model data
@@ -161,7 +163,7 @@ genZI <- function(outcome, predictors) {
     model_summary$zero_prop[i] <- mean(current_outcome == 0)
 
     # Fit model
-    model_fit <- fit_zinb_model(model_data)
+    model_fit <- fit_zinb_model(model_data, family)
     all_models[[i]] <- model_fit$model
 
     # Update model summary
@@ -188,7 +190,7 @@ genZI <- function(outcome, predictors) {
     outcome_id = outcome_ids,
     setNames(
       lapply(coef_names, function(x) {
-        p.adjust(results_matrix[, x], method = "BH")
+        round(p.adjust(results_matrix[, x], method = "BH"), 4)
       }),
       coef_names
     )
@@ -201,14 +203,14 @@ genZI <- function(outcome, predictors) {
   ))
 }
 
-fit_zinb_model <- function(data) {
+fit_zinb_model <- function(data, family) {
   tryCatch(
     {
       model <- glmmTMB(
         y ~ arm * time + age_B + (1 | subject),
         zi = ~ arm * time,
         data = data,
-        family = nbinom2
+        family = family
       )
       return(list(
         model = model,
@@ -378,7 +380,6 @@ plot_zinb_diagnostics <- function(diagnostic_results) {
         x = "Subject",
         y = "Random effect"
       ) +
-      theme_minimal() +
       theme(axis.text.x = element_blank())
   }
 
@@ -488,7 +489,12 @@ run_zinb_analysis <- function(phyloseq_obj, output_dir) {
   }
 
   # Prepare data
-  prepared_data <- prepare_ogu_data(phyloseq_obj)
+  prepared_data <- prepare_ogu_data(
+    absAbund,
+    filter_prevalence = TRUE,
+    prevalence_cutoff = 0.4,
+    filter_abundance = FALSE
+  )
   predictors <- prepare_predictors(prepared_data$meta_data)
 
   # Store original data with sample names
@@ -664,13 +670,13 @@ compareZI <- function(
   plot = TRUE
 ) {
   # Validate inputs
-  if (!is.formula(formula)) {
+  if (!plyr::is.formula(formula)) {
     stop("'formula' must be a valid formula object")
   }
   if (!is.data.frame(data)) {
     stop("'data' must be a data frame")
   }
-  if (!is.formula(zi)) {
+  if (!plyr::is.formula(zi)) {
     stop("'zi' must be a valid formula object")
   }
 
@@ -678,8 +684,8 @@ compareZI <- function(
     "gaussian",
     "poisson",
     "Gamma",
-    "nbinom2",
     "nbinom1",
+    "nbinom2",
     "nbinom12",
     "compois",
     "truncated_compois",
@@ -692,6 +698,9 @@ compareZI <- function(
     "betabinomial",
     "tweedie",
     "skewnormal",
+    "nbinom1",
+    "nbinom12",
+    "beta_family",
     "lognormal",
     "ziGamma",
     "t_family",
@@ -707,7 +716,7 @@ compareZI <- function(
     )
   }
 
-  conflicted::conflicts_prefer(glmmTMB::tweedie)
+  suppressMessages(conflicted::conflicts_prefer(glmmTMB::tweedie))
   # Initialize lists to store results
   models <- list()
   fit_stats <- list()
@@ -894,4 +903,413 @@ compareZI <- function(
   }
 
   return(invisible(result))
+}
+
+create_summary_plots <- function(results) {
+  require(ggplot2)
+  require(dplyr)
+  require(patchwork)
+
+  # Initialize plot list
+  plots <- list()
+
+  # 1. P-value distributions for different effects
+  plots$p_values <- results$adj_results %>%
+    tidyr::pivot_longer(
+      cols = c(time, arm, age_B, interaction),
+      names_to = "effect",
+      values_to = "p_value"
+    ) %>%
+    # Remove non-finite values
+    filter(is.finite(p_value)) %>%
+    {
+      ggplot(., aes(x = log10(p_value), fill = effect)) +
+        geom_histogram(bins = 50, position = "dodge") +
+        facet_wrap(~effect, scales = "free") +
+        labs(
+          title = "Distribution of Adjusted P-values by Effect",
+          x = "Adjusted P-value (log10)",
+          y = "Count",
+          caption = "Red line indicates a significance cut off equal to 0.05",
+        ) +
+        geom_vline(
+          xintercept = log10(0.05),
+          linetype = "dashed",
+          color = "red"
+        ) +
+        annotate(
+          "text",
+          x = -Inf,
+          y = Inf,
+          label = paste(
+            "Number of features with q ≤ 0.05:",
+            sum(.$p_value <= 0.05)
+          ),
+          hjust = 1,
+          vjust = -1
+        )
+    }
+
+  # 2. Model convergence summary
+  plots$convergence <- results$model_summary %>%
+    ggplot(aes(x = converged)) +
+    geom_bar(aes(fill = converged)) +
+    geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5) +
+    labs(
+      title = "Model Convergence Summary",
+      x = "Convergence Status",
+      y = "Count"
+    )
+
+  # 3. Zero proportion distribution
+  plots$zero_prop <- results$model_summary %>%
+    # Remove non-finite values
+    filter(is.finite(zero_prop)) %>%
+    ggplot(aes(x = zero_prop)) +
+    geom_histogram(bins = 30, fill = "steelblue") +
+    labs(
+      title = "Distribution of Zero Proportions",
+      x = "Proportion of Zeros",
+      y = "Count"
+    )
+
+  # 4. Model fit criteria
+  plots$fit_criteria <- results$model_summary %>%
+    tidyr::pivot_longer(
+      cols = c(AIC, BIC),
+      names_to = "criterion",
+      values_to = "value"
+    ) %>%
+    # Remove non-finite values
+    filter(is.finite(value)) %>%
+    ggplot(aes(x = value, fill = criterion)) +
+    geom_histogram(bins = 30, position = "dodge") +
+    facet_wrap(~criterion, scales = "free") +
+    labs(
+      title = "Distribution of Model Fit Criteria",
+      x = "Value",
+      y = "Count"
+    )
+
+  # 5. Error message summary if present
+  if (any(!is.na(results$model_summary$error_message))) {
+    error_summary <- results$model_summary %>%
+      filter(!is.na(error_message)) %>%
+      count(error_message) %>%
+      # Ensure n is finite
+      filter(is.finite(n))
+
+    if (nrow(error_summary) > 0) {
+      plots$error_summary <- error_summary %>%
+        ggplot(aes(x = reorder(error_message, n), y = n)) +
+        geom_col() +
+        coord_flip() +
+        # Adjust text size based on number of error messages
+        theme(
+          axis.text.y = element_text(
+            size = min(max(8, 12 - nrow(error_summary) / 10), 12)
+          )
+        ) +
+        labs(
+          title = "Summary of Error Messages",
+          x = "Error Message",
+          y = "Count"
+        )
+    }
+  }
+
+  # 6. Significant results summary
+  if (!is.null(results$adj_results)) {
+    sig_threshold <- 0.05
+    sig_counts <- results$adj_results %>%
+      summarise(across(
+        c(time, arm, age_B, interaction),
+        ~ sum(. < sig_threshold & is.finite(.)) # Only count finite values
+      )) %>%
+      tidyr::pivot_longer(
+        everything(),
+        names_to = "effect",
+        values_to = "count"
+      )
+
+    plots$significant <- ggplot(sig_counts, aes(x = effect, y = count)) +
+      geom_col(fill = "steelblue") +
+      # Rotate x-axis labels for better readability
+      theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+      labs(
+        title = "Number of Significant Results by Effect",
+        x = "Effect",
+        y = "Count of Significant Results"
+      )
+  }
+
+  # Combine plots using patchwork with explicit layout
+  # Create base layout with 2 rows, 2 columns for main plots
+  combined_plot <- (plots$p_values +
+    plots$convergence +
+    plots$zero_prop +
+    plots$fit_criteria) +
+    plot_layout(ncol = 2, nrow = 2)
+
+  # If we have additional plots, add them in new rows
+  if (!is.null(plots$error_summary) && !is.null(plots$significant)) {
+    # Add both additional plots in a new row
+    combined_plot <- combined_plot /
+      (plots$error_summary + plots$significant) +
+      plot_layout(heights = c(2, 1))
+  } else if (!is.null(plots$error_summary)) {
+    # Add just error summary
+    combined_plot <- combined_plot /
+      plots$error_summary +
+      plot_layout(heights = c(2, 1))
+  } else if (!is.null(plots$significant)) {
+    # Add just significant results
+    combined_plot <- combined_plot /
+      plots$significant +
+      plot_layout(heights = c(2, 1))
+  }
+
+  # Add overall theme adjustments
+  combined_plot <- combined_plot &
+    theme(
+      plot.title = element_text(size = 12),
+      axis.title = element_text(size = 10)
+    )
+
+  plots$combined <- combined_plot
+
+  return(plots)
+}
+
+zero_plot <- function(results) {
+  conv_text <- sprintf(
+    "%d/%d models converged (%.1f%%)",
+    sum(results$model_summary$converged),
+    nrow(results$model_summary),
+    100 * sum(results$model_summary$converged) / nrow(results$model_summary)
+  )
+
+  results$model_summary %>%
+    mutate(
+      convergence_status = ifelse(converged, "Converged", "Failed")
+    ) %>%
+    ggplot(aes(
+      x = outcome_id,
+      y = zero_prop,
+      color = convergence_status
+    )) +
+    geom_point(size = 3) +
+    scale_color_manual(
+      name = "Convergence Status",
+      values = c("Failed" = "#e78284", "Converged" = "#8CAAEE")
+    ) +
+    xlab(NULL) +
+    ylab("Proportion of Zeros") +
+    theme(
+      axis.text.x = element_blank(),
+      legend.position = "top"
+    ) +
+    annotate(
+      "text",
+      x = Inf,
+      y = -Inf,
+      label = conv_text,
+      hjust = 1,
+      vjust = -1
+    )
+}
+
+process_dharma_diagnostics <- function(model, model_id) {
+  if (is.null(model)) {
+    return(data.frame(
+      model_id = model_id,
+      test = NA,
+      p.value = NA,
+      warning = "Null model",
+      n_obs = NA,
+      n_zeros = NA,
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  tryCatch(
+    {
+      # Capture warnings during simulation
+      sim_warnings <- character()
+      withCallingHandlers(
+        r <- simulateResiduals(model),
+        warning = function(w) {
+          sim_warnings <<- c(sim_warnings, conditionMessage(w))
+          invokeRestart("muffleWarning")
+        }
+      )
+
+      # Get basic model information
+      n_obs <- length(r$observedResponse)
+      n_zeros <- sum(r$observedResponse == 0)
+
+      # List of tests to run with specific parameters
+      tests <- list(
+        Uniformity = function() testUniformity(r, plot = FALSE),
+        Dispersion = function() testDispersion(r, plot = FALSE),
+        # Use bootstrap for outlier test
+        Outliers = function() testOutliers(r, type = "bootstrap", plot = FALSE),
+        ZeroInflation = function() testZeroInflation(r, plot = FALSE)
+      )
+
+      # Run each test with error handling
+      results <- lapply(names(tests), function(test_name) {
+        test_warnings <- character()
+
+        test_result <- withCallingHandlers(
+          tryCatch(
+            {
+              tests[[test_name]]()
+            },
+            error = function(e) {
+              return(list(
+                statistic = NA,
+                p.value = NA,
+                error = as.character(e)
+              ))
+            }
+          ),
+          warning = function(w) {
+            test_warnings <<- c(test_warnings, conditionMessage(w))
+            invokeRestart("muffleWarning")
+          }
+        )
+
+        # Create result dataframe
+        data.frame(
+          model_id = model_id,
+          test = test_name,
+          p.value = if (is.null(test_result$p.value)) {
+            NA
+          } else {
+            test_result$p.value
+          },
+          warning = if (length(test_warnings) > 0) {
+            paste(test_warnings, collapse = "; ")
+          } else {
+            NA
+          },
+          n_obs = n_obs,
+          n_zeros = n_zeros,
+          stringsAsFactors = FALSE
+        )
+      })
+
+      # Combine all test results
+      do.call(rbind, results)
+    },
+    error = function(e) {
+      data.frame(
+        model_id = model_id,
+        test = NA,
+        p.value = NA,
+        warning = as.character(e),
+        n_obs = NA,
+        n_zeros = NA,
+        stringsAsFactors = FALSE
+      )
+    }
+  )
+}
+
+# Process models and create summary
+process_dharma_results <- function(results) {
+  # Process all models
+  all_diagnostics <- lapply(seq_along(results), function(i) {
+    process_model_diagnostics(
+      results[[i]],
+      names(results)[i]
+    )
+  })
+
+  # Combine all results
+  complete_diagnostics <- do.call(rbind, all_diagnostics)
+
+  # Create summary statistics
+  test_summary <- complete_diagnostics %>%
+    filter(!is.na(p.value)) %>%
+    group_by(test) %>%
+    summarise(
+      n_tests = n(),
+      n_significant = sum(p.value < 0.05),
+      mean_pval = mean(p.value),
+      median_pval = median(p.value),
+      n_warnings = sum(!is.na(warning)),
+      .groups = 'drop'
+    )
+
+  # Create warning summary
+  warning_summary <- complete_diagnostics %>%
+    filter(!is.na(warning)) %>%
+    group_by(test) %>%
+    summarise(
+      warnings = list(unique(warning)),
+      .groups = 'drop'
+    )
+
+  # Create wide format version
+  wide_diagnostics <- complete_diagnostics %>%
+    filter(!is.na(p.value)) %>%
+    select(-warning) %>% # Remove warning column for pivot
+    tidyr::pivot_wider(
+      id_cols = c(model_id, n_obs, n_zeros),
+      names_from = test,
+      values_from = p.value,
+      names_prefix = "pval_"
+    )
+
+  return(list(
+    complete = complete_diagnostics,
+    summary = test_summary,
+    warnings = warning_summary,
+    wide_format = wide_diagnostics
+  ))
+}
+
+# Create visualization of results
+plot_dharma_summary <- function(dharma_results) {
+  require(ggplot2)
+  require(patchwork)
+
+  # P-value distribution plot
+  p1 <- ggplot(
+    dharma_results$complete %>% filter(!is.na(p.value)),
+    aes(x = p.value, fill = test)
+  ) +
+    geom_histogram(bins = 20, position = "dodge") +
+    facet_wrap(~test) +
+    theme_minimal() +
+    labs(title = "Distribution of p-values by test")
+
+  # Success rate plot
+  p2 <- ggplot(
+    dharma_results$summary,
+    aes(x = test, y = n_significant / n_tests)
+  ) +
+    geom_col() +
+    theme_minimal() +
+    labs(
+      title = "Proportion of significant tests",
+      y = "Proportion significant (p < 0.05)"
+    )
+
+  # Number of observations plot
+  p3 <- ggplot(dharma_results$wide_format, aes(x = n_obs)) +
+    geom_histogram(bins = 20) +
+    theme_minimal() +
+    labs(title = "Distribution of number of observations")
+
+  # Zero proportion plot
+  p4 <- ggplot(dharma_results$wide_format, aes(x = n_zeros / n_obs)) +
+    geom_histogram(bins = 20) +
+    theme_minimal() +
+    labs(title = "Distribution of zero proportions")
+
+  # Combine plots
+  (p1 + p2) / (p3 + p4)
 }
