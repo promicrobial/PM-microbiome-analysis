@@ -7,23 +7,22 @@
 
 # This initial code block loads custom utility functions and environment variables
 # These are stored in separate files to keep the main analysis clean and organized
-source("utils/r-utils.r")
-source("scripts/OGeeU.r")
-source("scripts/zeroGUS.r")
+suppressMessages({
+  source("utils/r-utils.r")
+  source("scripts/OGeeU.r")
+  source("scripts/zeroGUS.r")
 
-source("_environment.required")
-load("data/seqdata.RData")
+  source("_environment.required")
+  load("data/seqdata.RData")
 
-suppressPackageStartupMessages({
-  library(ZIBR)
   library(glmmTMB)
   library(DHARMa)
-  library(performance)
+  library(broom)
   library(patchwork)
-  })
 
-dir.create(file.path(RESULTS, "EvsB-OGU-ZIBR"), showWarnings = FALSE, recursive = TRUE)
+  dir.create(file.path(RESULTS, "EvsB-OGU-ZIBR"), showWarnings = FALSE, recursive = TRUE)
 
+})
 ```
 
 ```{r}
@@ -33,6 +32,11 @@ dir.create(file.path(RESULTS, "EvsB-OGU-ZIBR"), showWarnings = FALSE, recursive 
 data <- prepare_ogu_data(absAbund, filter_prevalence = TRUE, prevalence_cutoff = 0.4, filter_abundance = FALSE)
 
 outcome <- data$ogu_data
+rownames(outcome) <- str_replace(
+  str_replace(str_remove(rownames(outcome), "_G"), "_B_B", "_B"),
+  "_B_E",
+  "_E"
+)
 
 predictors <- prepare_predictors(data$meta_data)
 predictors <- predictors %>%
@@ -45,17 +49,128 @@ predictors <- predictors %>%
   mutate(sample = str_replace(sample, "_B_B", "_B")) %>%
   mutate(sample = str_replace(sample, "_B_E", "_E")) 
 
+results <- genZI(outcome, predictors)
+
+saveRDS(results, file.path(RESULTS, "EvsB-OGU-ZIBR", "genZI-OGU-results.rds"))
+```
+
+```{r}
+#| eval: false
+#| label: results
+
+results <- readRDS(file.path(RESULTS, "EvsB-OGU-ZIBR", "genZI-OGU-results.rds"))
+```
+
+```{r}
+#| eval: true
+#| label: fig-scatter-converged-models
+
+zero_plot(results)
+```
+
+```{r}
+#| eval: true
+#| label: fig-summary-plots
+
+plots <- create_summary_plots(results)
+plots$combined
+```
+
+```{r}
+#| eval: true
+#| label: residuals
+
+suppressWarnings({
+res <- lapply(results$all_models, function(mod){
+  r <- simulateResiduals(mod)
+  t1 <- tidy(testUniformity(r, plot = FALSE))
+  t2 <- tidy(testDispersion(r, plot = FALSE))
+  t3 <- tidy(testOutliers(r, plot = FALSE))
+  t4 <- tidy(testZeroInflation(r, plot = FALSE))
+
+  return(list(Uniformity = t1,Dispersion = t2, Outliers  = t3, ZeroInflation = t4))
+})}
+)
+
+dharma_results <- process_dharma_results(results$all_models)
+```
+
+
+```{r}
+#| eval: false
+#| label: refits
+unfit <- results$adj_results %>%
+  filter(if_any(everything(), is.na)) 
+
+unfit <- unfit[,1]
+
+outcome <- data$ogu_data 
+
 rownames(outcome) <- str_replace(
   str_replace(str_remove(rownames(outcome), "_G"), "_B_B", "_B"),
   "_B_E",
   "_E"
 )
 
-suppressWarnings(suppressMessages(tmp <- genZI(outcome, predictors)))
+outcome <- outcome %>%
+  select(all_of(unfit))
+
+ncol(outcome) == length(unfit)
+
+tmp <- genZI(outcome, predictors, family = poisson)
+```
+
+A total of `r length(unfit)` models did not converge appropriately and were refit with a Poisson distribution.
+
+```{r}
+#| eval: true
+#| label: unfit2
+
+unfit2 <- tmp$adj_results %>%
+  filter(if_any(everything(), is.na))
+
+unfit2 <- unfit2[,1]
+
+outcome <- data$ogu_data 
+
+rownames(outcome) <- str_replace(
+  str_replace(str_remove(rownames(outcome), "_G"), "_B_B", "_B"),
+  "_B_E",
+  "_E"
+)
+
+outcome <- outcome %>%
+  select(all_of(unfit2))
+
+ncol(outcome) == length(unfit2)
+
+tmp2 <- genZI(outcome, predictors, family = gaussian)
+
 ```
 
 ```{r}
 #| eval: true
+#| label: unfit3
+
+unfit3 <- tmp$adj_results %>%
+  filter(if_any(everything(), is.na))
+
+unfit3 <- unfit3[,1]
+
+outcome <- outcome %>%
+  select(all_of(unfit3))
+
+ncol(outcome) == length(unfit3)
+
+tmp3 <- genZI(outcome, predictors, family = lognormal)
+
+lapply(tmp3$all_models, diagnose)
+```
+
+A total of `r length(unfit2)` models did not converge appropriately and were refit with a Log normal distribution. A single OGU (G001054195) resulted in large coefficients in the zero-inflated model component. A better fit could not be found.
+
+```{r}
+#| eval: false
 #| label: auto
 
 results <- run_zibr_pipeline (
@@ -63,11 +178,7 @@ results <- run_zibr_pipeline (
   output_dir = file.path(RESULTS, "EvsB-OGU-GEE")
 )
 
-# 3. Get summary of results
-cat("Total OGUs analyzed:", nrow(results$model_results$convergence_summary), "\n")
-cat("Significant OGUs:", nrow(results$significant_ogus), "\n")
-
-# 4. Create summary plots
+# Create summary plots
 plots <- create_summary_plots(results)
 print(plots$p_value_dist)
 print(plots$volcano_plot)

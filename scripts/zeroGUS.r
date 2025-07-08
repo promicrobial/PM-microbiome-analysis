@@ -1207,6 +1207,7 @@ process_dharma_diagnostics <- function(model, model_id) {
       model_id = model_id,
       test = NA,
       p.value = NA,
+      test_status = "Model NULL", # New status column
       warning = "Null model",
       n_obs = NA,
       n_zeros = NA,
@@ -1246,14 +1247,29 @@ process_dharma_diagnostics <- function(model, model_id) {
         test_result <- withCallingHandlers(
           tryCatch(
             {
-              tests[[test_name]]()
+              result <- tests[[test_name]]()
+
+              # Determine test status
+              status <- if (is.null(result$p.value)) {
+                "No test performed"
+              } else if (is.na(result$p.value)) {
+                "Test not applicable"
+              } else {
+                "Test completed"
+              }
+
+              list(
+                p.value = result$p.value,
+                status = status,
+                error = NULL
+              )
             },
             error = function(e) {
-              return(list(
-                statistic = NA,
+              list(
                 p.value = NA,
+                status = "Error in test",
                 error = as.character(e)
-              ))
+              )
             }
           ),
           warning = function(w) {
@@ -1266,11 +1282,8 @@ process_dharma_diagnostics <- function(model, model_id) {
         data.frame(
           model_id = model_id,
           test = test_name,
-          p.value = if (is.null(test_result$p.value)) {
-            NA
-          } else {
-            test_result$p.value
-          },
+          p.value = test_result$p.value,
+          test_status = test_result$status, # New column
           warning = if (length(test_warnings) > 0) {
             paste(test_warnings, collapse = "; ")
           } else {
@@ -1290,6 +1303,7 @@ process_dharma_diagnostics <- function(model, model_id) {
         model_id = model_id,
         test = NA,
         p.value = NA,
+        test_status = "Error in model processing", # New status
         warning = as.character(e),
         n_obs = NA,
         n_zeros = NA,
@@ -1337,37 +1351,37 @@ process_dharma_results <- function(results) {
   # Combine all results
   complete_diagnostics <- do.call(rbind, all_diagnostics)
 
-  # Create summary statistics
+  # Create enhanced summary statistics
   test_summary <- complete_diagnostics %>%
-    filter(!is.na(p.value)) %>%
     group_by(test) %>%
     summarise(
-      n_tests = n(),
-      n_significant = sum(p.value < 0.05),
-      mean_pval = mean(p.value),
-      median_pval = median(p.value),
+      n_total = n(),
+      n_completed = sum(test_status == "Test completed"),
+      n_na = sum(test_status == "Test not applicable"),
+      n_error = sum(test_status == "Error in test"),
+      n_significant = sum(p.value < 0.05, na.rm = TRUE),
+      mean_pval = mean(p.value, na.rm = TRUE),
+      median_pval = median(p.value, na.rm = TRUE),
       n_warnings = sum(!is.na(warning)),
       .groups = 'drop'
     )
 
-  # Create warning summary
+  # Enhanced warning summary
   warning_summary <- complete_diagnostics %>%
     filter(!is.na(warning)) %>%
-    group_by(test) %>%
+    group_by(test, test_status) %>%
     summarise(
       warnings = list(unique(warning)),
       .groups = 'drop'
     )
 
-  # Create wide format version
+  # Create wide format version with status
   wide_diagnostics <- complete_diagnostics %>%
-    filter(!is.na(p.value)) %>%
-    select(-warning) %>% # Remove warning column for pivot
+    select(-warning) %>%
     tidyr::pivot_wider(
       id_cols = c(model_id, n_obs, n_zeros),
       names_from = test,
-      values_from = p.value,
-      names_prefix = "pval_"
+      values_from = c(p.value, test_status)
     )
 
   return(list(
@@ -1408,39 +1422,42 @@ plot_dharma_summary <- function(dharma_results) {
   require(ggplot2)
   require(patchwork)
 
-  # P-value distribution plot
-  p1 <- ggplot(
-    dharma_results$complete %>% filter(!is.na(p.value)),
+  # Create status summary plot
+  p1 <- ggplot(dharma_results$summary, aes(x = test)) +
+    geom_col(aes(y = n_total), fill = "lightgrey") +
+    geom_col(aes(y = n_completed), fill = "steelblue") +
+    geom_text(aes(y = n_total, label = sprintf("NA: %d", n_na)), vjust = -0.5) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    labs(title = "Test Completion Status", y = "Count", x = "Test")
+
+  # Modified p-value distribution plot
+  p2 <- ggplot(
+    dharma_results$complete %>%
+      filter(test_status == "Test completed"),
     aes(x = p.value, fill = test)
   ) +
     geom_histogram(bins = 20, position = "dodge") +
     facet_wrap(~test) +
     theme_minimal() +
-    labs(title = "Distribution of p-values by test")
+    labs(title = "Distribution of p-values (completed tests only)")
 
-  # Success rate plot
-  p2 <- ggplot(
-    dharma_results$summary,
-    aes(x = test, y = n_significant / n_tests)
-  ) +
-    geom_col() +
-    theme_minimal() +
-    labs(
-      title = "Proportion of significant tests",
-      y = "Proportion significant (p < 0.05)"
-    )
-
-  # Number of observations plot
+  # Enhanced observation count plot
   p3 <- ggplot(dharma_results$wide_format, aes(x = n_obs)) +
     geom_histogram(bins = 20) +
     theme_minimal() +
-    labs(title = "Distribution of number of observations")
+    labs(
+      title = "Distribution of observations",
+      subtitle = sprintf("Total models: %d", nrow(dharma_results$wide_format))
+    )
 
-  # Zero proportion plot
-  p4 <- ggplot(dharma_results$wide_format, aes(x = n_zeros / n_obs)) +
-    geom_histogram(bins = 20) +
+  # Modified zero proportion plot with test status
+  p4 <- dharma_results$complete %>%
+    filter(!is.na(n_zeros)) %>%
+    ggplot(aes(x = n_zeros / n_obs, fill = test_status)) +
+    geom_histogram(bins = 20, position = "stack") +
     theme_minimal() +
-    labs(title = "Distribution of zero proportions")
+    labs(title = "Zero proportions by test status")
 
   # Combine plots
   (p1 + p2) / (p3 + p4)
