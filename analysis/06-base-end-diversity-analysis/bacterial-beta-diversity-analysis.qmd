@@ -30,10 +30,18 @@ suppressPackageStartupMessages(library(pairwiseAdonis))
 #| eval: true
 #| label: BE beta diversity distance matrix calculation
 
-bray <- phyloseq::distance(bac_base_end, method = "bray", type = "samples") #calculated on abundance 
+bray <- phyloseq::distance(bac_base_end, method = "bray", type = "samples") #calculated on abundance
 jac <- phyloseq::distance(bac_base_end, method = "jaccard", type = "samples")
-uunifrac <- phyloseq::distance(bac_base_end, method = "uunifrac", type = "samples")
-wunifrac <- phyloseq::distance(bac_base_end, method = "wunifrac", type = "samples")
+uunifrac <- phyloseq::distance(
+  bac_base_end,
+  method = "uunifrac",
+  type = "samples"
+)
+wunifrac <- phyloseq::distance(
+  bac_base_end,
+  method = "wunifrac",
+  type = "samples"
+)
 ```
 
 ### Beta diversity statistial tests for differences
@@ -94,10 +102,26 @@ $H_1$ =  biofortified pearl millet differentlaly changes beta diversity metrics 
 #| eval:  true
 #| label: ANOSIM
 #function requires that rows = sample and column = OGU
-summary(vegan::anosim(bray, grouping = microbiome::meta(bac_base_end)$arm, strata = microbiome::meta(bac_base_end)$timepoint)) #there is no difference in Bray Curtis distance between treatment groups
-summary(vegan::anosim(jac, grouping = microbiome::meta(bac_base_end)$arm, strata = microbiome::meta(bac_base_end)$timepoint)) #there is no difference in Jaccard distance between treatment groups
-summary(vegan::anosim(uunifrac, grouping = microbiome::meta(bac_base_end)$arm, strata = microbiome::meta(bac_base_end)$timepoint)) #there is no difference in unweighted unifrac distance between treatment groups
-summary(vegan::anosim(wunifrac, grouping = microbiome::meta(bac_base_end)$arm, strata = microbiome::meta(bac_base_end)$timepoint)) #there is no difference in weighted unifrac distance between treatment groups
+summary(vegan::anosim(
+  bray,
+  grouping = microbiome::meta(bac_base_end)$arm,
+  strata = microbiome::meta(bac_base_end)$timepoint
+)) #there is no difference in Bray Curtis distance between treatment groups
+summary(vegan::anosim(
+  jac,
+  grouping = microbiome::meta(bac_base_end)$arm,
+  strata = microbiome::meta(bac_base_end)$timepoint
+)) #there is no difference in Jaccard distance between treatment groups
+summary(vegan::anosim(
+  uunifrac,
+  grouping = microbiome::meta(bac_base_end)$arm,
+  strata = microbiome::meta(bac_base_end)$timepoint
+)) #there is no difference in unweighted unifrac distance between treatment groups
+summary(vegan::anosim(
+  wunifrac,
+  grouping = microbiome::meta(bac_base_end)$arm,
+  strata = microbiome::meta(bac_base_end)$timepoint
+)) #there is no difference in weighted unifrac distance between treatment groups
 ```
 
 #### PERMDISP
@@ -107,19 +131,35 @@ PERMANOVA assumes homogeneity of multivariate dispersions across groups therefor
 ```{r}
 #| eval:  true
 #| label: PERMDISP
-bray_disp <- betadisper(d = bray, group = microbiome::meta(bac_base_end)$arm, type = "centroid")
+bray_disp <- betadisper(
+  d = bray,
+  group = microbiome::meta(bac_base_end)$arm,
+  type = "centroid"
+)
 permutest(bray_disp, pairwise = F, group = timepoint)
 report::report_table(anova(bray_disp))
 
-jac_disp <- betadisper(d = jac, group = microbiome::meta(bac_base_end)$arm, type = "centroid")
+jac_disp <- betadisper(
+  d = jac,
+  group = microbiome::meta(bac_base_end)$arm,
+  type = "centroid"
+)
 permutest(jac_disp, pairwise = F, group = timepoint)
 report::report_table(anova(jac_disp))
 
-uunifrac_disp <- betadisper(d = uunifrac, group = microbiome::meta(bac_base_end)$arm, type = "centroid")
+uunifrac_disp <- betadisper(
+  d = uunifrac,
+  group = microbiome::meta(bac_base_end)$arm,
+  type = "centroid"
+)
 permutest(uunifrac_disp, pairwise = F, group = timepoint)
 report::report_table(anova(uunifrac_disp))
 
-wunifrac_disp <- betadisper(d = wunifrac, group = microbiome::meta(bac_base_end)$arm, type = "centroid")
+wunifrac_disp <- betadisper(
+  d = wunifrac,
+  group = microbiome::meta(bac_base_end)$arm,
+  type = "centroid"
+)
 permutest(wunifrac_disp, pairwise = F, group = timepoint)
 report::report_table(anova(wunifrac_disp))
 
@@ -136,13 +176,25 @@ assumption: variance of dispersions are homogenous across groups
 ```{r}
 #| eval: true
 #| label: PERMANOVA results output
-(bray_adon <- adonis2(bray ~ timepoint * arm, data = microbiome::meta(bac_base_end)))
+(bray_adon <- adonis2(
+  bray ~ timepoint * arm,
+  data = microbiome::meta(bac_base_end)
+))
 
-(jac_adon <- adonis2(jac ~ timepoint * arm, data = microbiome::meta(bac_base_end)))
+(jac_adon <- adonis2(
+  jac ~ timepoint * arm,
+  data = microbiome::meta(bac_base_end)
+))
 
-(wunifrac_adon <- adonis2(wunifrac ~ timepoint * arm, data = microbiome::meta(bac_base_end)))
+(wunifrac_adon <- adonis2(
+  wunifrac ~ timepoint * arm,
+  data = microbiome::meta(bac_base_end)
+))
 
-(uunifrac_adon <- adonis2(uunifrac ~ timepoint * arm, data = microbiome::meta(bac_base_end)))
+(uunifrac_adon <- adonis2(
+  uunifrac ~ timepoint * arm,
+  data = microbiome::meta(bac_base_end)
+))
 
 ```
 
@@ -173,7 +225,7 @@ $$
 #| eval: true
 #| label: eta squared
 #calculate effect size for permanova: eta-squared
-etasq <- function(adonis){
+etasq <- function(adonis) {
   SS_between <- adonis$SumOfSqs[1]
   SS_total <- adonis$SumOfSqs[length(adonis$SumOfSqs)]
   etasq <- SS_between / SS_total
@@ -182,8 +234,14 @@ etasq <- function(adonis){
 
 etasq(adonis2(bray ~ timepoint * arm, data = microbiome::meta(bac_base_end)))
 etasq(adonis2(jac ~ timepoint * arm, data = microbiome::meta(bac_base_end)))
-etasq(adonis2(wunifrac ~ timepoint * arm, data = microbiome::meta(bac_base_end)))
-etasq(adonis2(uunifrac ~ timepoint * arm, data = microbiome::meta(bac_base_end)))
+etasq(adonis2(
+  wunifrac ~ timepoint * arm,
+  data = microbiome::meta(bac_base_end)
+))
+etasq(adonis2(
+  uunifrac ~ timepoint * arm,
+  data = microbiome::meta(bac_base_end)
+))
 
 #all <0.6 => small effect size
 ```
@@ -207,14 +265,14 @@ Where:
 ```{r}
 #| eval: true
 #| label: omega squared
-omegasq <- function(aovm){
-    sum_stats <- aovm
-    SSm <- sum_stats[["SumOfSq"]][1]
-    SSr <- sum_stats[["SumOfSq"]][2]
-    DFm <- sum_stats[["Df"]][1]
-    MSr <- sum_stats[["Mean Sq"]][2]
-    W2 <- (SSm-DFm*MSr)/(SSm+SSr+MSr)
-    return(W2)
+omegasq <- function(aovm) {
+  sum_stats <- aovm
+  SSm <- sum_stats[["SumOfSq"]][1]
+  SSr <- sum_stats[["SumOfSq"]][2]
+  DFm <- sum_stats[["Df"]][1]
+  MSr <- sum_stats[["Mean Sq"]][2]
+  W2 <- (SSm - DFm * MSr) / (SSm + SSr + MSr)
+  return(W2)
 }
 
 omegasq(adonis2(bray ~ timepoint * arm, data = microbiome::meta(bac_base_end)))
@@ -237,10 +295,30 @@ MDS creates a visualization where:
 #| label: beta div MDS ordination
 
 #perform metric multidimensional scaling
-bray.ord.mds <- phyloseq::ordinate(bac_base_end, method = "MDS", distance = bray, trymax = 100)
-jac.ord.mds <- phyloseq::ordinate(bac_base_end, method = "MDS", distance = jac, trymax = 100)
-uunifrac.ord.mds <- phyloseq::ordinate(bac_base_end, method = "MDS", distance = uunifrac, trymax = 100)
-wunifrac.ord.mds <- phyloseq::ordinate(bac_base_end, method = "MDS", distance = wunifrac, trymax = 100)
+bray.ord.mds <- phyloseq::ordinate(
+  bac_base_end,
+  method = "MDS",
+  distance = bray,
+  trymax = 100
+)
+jac.ord.mds <- phyloseq::ordinate(
+  bac_base_end,
+  method = "MDS",
+  distance = jac,
+  trymax = 100
+)
+uunifrac.ord.mds <- phyloseq::ordinate(
+  bac_base_end,
+  method = "MDS",
+  distance = uunifrac,
+  trymax = 100
+)
+wunifrac.ord.mds <- phyloseq::ordinate(
+  bac_base_end,
+  method = "MDS",
+  distance = wunifrac,
+  trymax = 100
+)
 ```
 
 #### Non-metric Multidimensional Scaling (NMDS)
@@ -256,10 +334,30 @@ NMDS is often preferred for ecological data because:
 ```{r}
 #| eval:  true
 #| label: beta div NMDS ordination
-bray.ord.nmds <- phyloseq::ordinate(bac_base_end, method = "NMDS", distance = bray, trymax = 100)
-jac.ord.nmds <- phyloseq::ordinate(bac_base_end, method = "NMDS", distance = jac, trymax = 100)
-uunifrac.ord.nmds <- phyloseq::ordinate(bac_base_end, method = "NMDS", distance = uunifrac, trymax = 100)
-wunifrac.ord.nmds <- phyloseq::ordinate(bac_base_end, method = "NMDS", distance = wunifrac, trymax = 100)
+bray.ord.nmds <- phyloseq::ordinate(
+  bac_base_end,
+  method = "NMDS",
+  distance = bray,
+  trymax = 100
+)
+jac.ord.nmds <- phyloseq::ordinate(
+  bac_base_end,
+  method = "NMDS",
+  distance = jac,
+  trymax = 100
+)
+uunifrac.ord.nmds <- phyloseq::ordinate(
+  bac_base_end,
+  method = "NMDS",
+  distance = uunifrac,
+  trymax = 100
+)
+wunifrac.ord.nmds <- phyloseq::ordinate(
+  bac_base_end,
+  method = "NMDS",
+  distance = wunifrac,
+  trymax = 100
+)
 ```
 
 #### Ordination Plots with PERMANOVA $R^2$ and P-values
@@ -272,39 +370,154 @@ wunifrac.ord.nmds <- phyloseq::ordinate(bac_base_end, method = "NMDS", distance 
 #| eval:  true
 #| label: fig-beta-mds
 #| fig-height: 12
-#| fig-width: 10
-bray.plot.mds <- plot_ordination(bac_base_end, bray.ord.mds, color = "timepoint", shape = "arm") + 
-  labs(title="Bray-Curtis Distance", color = "Timepoint", shape = "Intervention Arm") + geom_point(size=4) +     
-  scale_color_discrete(labels=time_labels) +
-  theme(legend.title= element_text(size = fontsize, face='bold', color='black'), plot.title = element_text(size = 12)) +
-  scale_shape_manual(values = c(16,17), labels = trt_labels) + 
-  annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = bquote(atop(R^2 == .(round(bray_adon[1,3],3)), p == .(round(bray_adon[1,5],3)))))
+#| fig-width: 16
+bray.plot.mds <- plot_ordination(
+  bac_base_end,
+  bray.ord.mds,
+  color = "timepoint",
+  shape = "arm"
+) +
+  labs(
+    title = "Bray-Curtis Distance",
+    color = "Timepoint",
+    shape = "Intervention Arm"
+  ) +
+  geom_point(size = 4) +
+  scale_color_discrete(labels = time_labels) +
+  theme(
+    legend.title = element_text(
+      size = fontsize,
+      face = 'bold',
+      color = 'black'
+    ),
+    plot.title = element_text(size = 12)
+  ) +
+  scale_shape_manual(values = c(16, 17), labels = trt_labels) +
+  annotate(
+    "text",
+    x = Inf,
+    y = Inf,
+    hjust = 2,
+    vjust = 2,
+    label = bquote(atop(
+      R^2 == .(round(bray_adon[1, 3], 3)),
+      p == .(round(bray_adon[1, 5], 3))
+    ))
+  )
 
-jac.plot.mds <- plot_ordination(bac_base_end, jac.ord.mds, color = "timepoint", shape = "arm") + 
-    labs(title="Jaccard Disimilarity", color = "Timepoint", shape = "Intervention Arm") + 
-    geom_point(size=4) + 
-    scale_color_discrete(labels=time_labels) +
-    theme(legend.title= element_text(size = fontsize, face='bold', color='black'), plot.title = element_text(size = 12)) +
-    scale_shape_manual(values = c(16,17), labels = trt_labels)+ 
-   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = bquote(atop(R^2 == .(round(jac_adon[1,3],3)), p == .(round(jac_adon[1,5],3)))))
+jac.plot.mds <- plot_ordination(
+  bac_base_end,
+  jac.ord.mds,
+  color = "timepoint",
+  shape = "arm"
+) +
+  labs(
+    title = "Jaccard Disimilarity",
+    color = "Timepoint",
+    shape = "Intervention Arm"
+  ) +
+  geom_point(size = 4) +
+  scale_color_discrete(labels = time_labels) +
+  theme(
+    legend.title = element_text(
+      size = fontsize,
+      face = 'bold',
+      color = 'black'
+    ),
+    plot.title = element_text(size = 12)
+  ) +
+  scale_shape_manual(values = c(16, 17), labels = trt_labels) +
+  annotate(
+    "text",
+    x = Inf,
+    y = Inf,
+    hjust = 2,
+    vjust = 2,
+    label = bquote(atop(
+      R^2 == .(round(jac_adon[1, 3], 3)),
+      p == .(round(jac_adon[1, 5], 3))
+    ))
+  )
 
-uunifrac.plot.mds <- plot_ordination(bac_base_end, uunifrac.ord.mds, color = "timepoint", shape = "arm") + 
-    labs(title="Unweighted UniFrac", color = "Timepoint", shape = "Intervention Arm") + 
-    geom_point(size=4) + 
-    scale_color_discrete(labels=time_labels) +
-    theme(legend.title= element_text(size = fontsize, face='bold', color='black'), plot.title = element_text(size = 12)) +
-    scale_shape_manual(values = c(16,17), labels = trt_labels)+ 
-   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = bquote(atop(R^2 == .(round(uunifrac_adon[1,3],3)), p == .(round(uunifrac_adon[1,5],3)))))
+uunifrac.plot.mds <- plot_ordination(
+  bac_base_end,
+  uunifrac.ord.mds,
+  color = "timepoint",
+  shape = "arm"
+) +
+  labs(
+    title = "Unweighted UniFrac",
+    color = "Timepoint",
+    shape = "Intervention Arm"
+  ) +
+  geom_point(size = 4) +
+  scale_color_discrete(labels = time_labels) +
+  theme(
+    legend.title = element_text(
+      size = fontsize,
+      face = 'bold',
+      color = 'black'
+    ),
+    plot.title = element_text(size = 12)
+  ) +
+  scale_shape_manual(values = c(16, 17), labels = trt_labels) +
+  annotate(
+    "text",
+    x = Inf,
+    y = Inf,
+    hjust = 2,
+    vjust = 2,
+    label = bquote(atop(
+      R^2 == .(round(uunifrac_adon[1, 3], 3)),
+      p == .(round(uunifrac_adon[1, 5], 3))
+    ))
+  )
 
-wunifrac.plot.mds <- plot_ordination(bac_base_end, wunifrac.ord.mds, color = "timepoint", shape = "arm") + 
-    labs(title="Weighted UniFrac", color = "Timepoint", shape = "Intervention Arm") + 
-    geom_point(size=4) + 
-    scale_color_discrete(labels=time_labels) +
-    theme(legend.title= element_text(size = fontsize, face='bold', color='black'), plot.title = element_text(size = 12)) +
-    scale_shape_manual(values = c(16,17), labels = trt_labels)+ 
-   annotate("text", x = -Inf, y = Inf, hjust = -1, vjust = 2, label = bquote(atop(R^2 == .(round(wunifrac_adon[1,3],3)), p == .(round(wunifrac_adon[1,5],3)))))
+wunifrac.plot.mds <- plot_ordination(
+  bac_base_end,
+  wunifrac.ord.mds,
+  color = "timepoint",
+  shape = "arm"
+) +
+  labs(
+    title = "Weighted UniFrac",
+    color = "Timepoint",
+    shape = "Intervention Arm"
+  ) +
+  geom_point(size = 4) +
+  scale_color_discrete(labels = time_labels) +
+  theme(
+    legend.title = element_text(
+      size = fontsize,
+      face = 'bold',
+      color = 'black'
+    ),
+    plot.title = element_text(size = 12)
+  ) +
+  scale_shape_manual(values = c(16, 17), labels = trt_labels) +
+  annotate(
+    "text",
+    x = -Inf,
+    y = Inf,
+    hjust = -1,
+    vjust = 2,
+    label = bquote(atop(
+      R^2 == .(round(wunifrac_adon[1, 3], 3)),
+      p == .(round(wunifrac_adon[1, 5], 3))
+    ))
+  )
 
-ggarrange(bray.plot.mds, jac.plot.mds, uunifrac.plot.mds, wunifrac.plot.mds,ncol = 2, nrow=2, common.legend = T, legend = "bottom", labels = "AUTO")
+ggarrange(
+  bray.plot.mds,
+  jac.plot.mds,
+  uunifrac.plot.mds,
+  wunifrac.plot.mds,
+  ncol = 2,
+  nrow = 2,
+  common.legend = T,
+  legend = "bottom",
+  labels = "AUTO"
+)
 
 ```
 
@@ -320,43 +533,156 @@ ggarrange(bray.plot.mds, jac.plot.mds, uunifrac.plot.mds, wunifrac.plot.mds,ncol
 #| eval: true
 #| label: fig-beta-nmds
 #| fig-height: 12
-#| fig-width: 10
+#| fig-width: 16
 
-bray.plot.nmds <- plot_ordination(bac_base_end, bray.ord.nmds, color = "timepoint", shape = "arm") + 
-              labs(title="Bray-Curtis Distance", color = "Timepoint", shape = "Intervention Arm") + 
-              geom_point(size=4) + 
-              #ggalt::geom_encircle(aes(group = arm, fill = arm), size = 1, alpha = 0.1) +
-              scale_color_discrete(labels=time_labels) +
-              theme(legend.title= element_text(size = fontsize, face='bold', color='black'), plot.title = element_text(size = 12)) +
-              scale_shape_manual(values = c(16,17), labels = trt_labels)+ 
-   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = bquote(atop(R^2 == .(round(bray_adon[1,3],3)), p == .(round(bray_adon[1,5],3)))))
- 
-jac.plot.nmds <- plot_ordination(bac_base_end, jac.ord.nmds, color = "timepoint", shape = "arm") + 
-              labs(title="Jaccard Disimilarity", color = "Timepoint", shape = "Intervention Arm") + 
-              geom_point(size=4) + 
-              scale_color_discrete(labels=time_labels) +
-              theme(legend.title= element_text(size = fontsize, face='bold', color='black'), plot.title = element_text(size = 12)) +
-              scale_shape_manual(values = c(16,17), labels = trt_labels)+ 
-   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = bquote(atop(R^2 == .(round(jac_adon[1,3],3)), p == .(round(jac_adon[1,5],3)))))
+bray.plot.nmds <- plot_ordination(
+  bac_base_end,
+  bray.ord.nmds,
+  color = "timepoint",
+  shape = "arm"
+) +
+  labs(
+    title = "Bray-Curtis Distance",
+    color = "Timepoint",
+    shape = "Intervention Arm"
+  ) +
+  geom_point(size = 4) +
+  #ggalt::geom_encircle(aes(group = arm, fill = arm), size = 1, alpha = 0.1) +
+  scale_color_discrete(labels = time_labels) +
+  theme(
+    legend.title = element_text(
+      size = fontsize,
+      face = 'bold',
+      color = 'black'
+    ),
+    plot.title = element_text(size = 12)
+  ) +
+  scale_shape_manual(values = c(16, 17), labels = trt_labels) +
+  annotate(
+    "text",
+    x = Inf,
+    y = Inf,
+    hjust = 2,
+    vjust = 2,
+    label = bquote(atop(
+      R^2 == .(round(bray_adon[1, 3], 3)),
+      p == .(round(bray_adon[1, 5], 3))
+    ))
+  )
 
-uunifrac.plot.nmds <- plot_ordination(bac_base_end, uunifrac.ord.nmds, color = "timepoint", shape = "arm") + 
-              labs(title="Unweighted UniFrac", color = "Timepoint", shape = "Intervention Arm") + 
-              geom_point(size=4) + 
-              scale_color_discrete(labels=time_labels) +
-              theme(legend.title= element_text(size = fontsize, face='bold', color='black'), plot.title = element_text(size = 12)) +
-              scale_shape_manual(values = c(16,17), labels = trt_labels)+ 
-   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = bquote(atop(R^2 == .(round(uunifrac_adon[1,3],3)), p == .(round(uunifrac_adon[1,5],3)))))
+jac.plot.nmds <- plot_ordination(
+  bac_base_end,
+  jac.ord.nmds,
+  color = "timepoint",
+  shape = "arm"
+) +
+  labs(
+    title = "Jaccard Disimilarity",
+    color = "Timepoint",
+    shape = "Intervention Arm"
+  ) +
+  geom_point(size = 4) +
+  scale_color_discrete(labels = time_labels) +
+  theme(
+    legend.title = element_text(
+      size = fontsize,
+      face = 'bold',
+      color = 'black'
+    ),
+    plot.title = element_text(size = 12)
+  ) +
+  scale_shape_manual(values = c(16, 17), labels = trt_labels) +
+  annotate(
+    "text",
+    x = Inf,
+    y = Inf,
+    hjust = 2,
+    vjust = 2,
+    label = bquote(atop(
+      R^2 == .(round(jac_adon[1, 3], 3)),
+      p == .(round(jac_adon[1, 5], 3))
+    ))
+  )
 
+uunifrac.plot.nmds <- plot_ordination(
+  bac_base_end,
+  uunifrac.ord.nmds,
+  color = "timepoint",
+  shape = "arm"
+) +
+  labs(
+    title = "Unweighted UniFrac",
+    color = "Timepoint",
+    shape = "Intervention Arm"
+  ) +
+  geom_point(size = 4) +
+  scale_color_discrete(labels = time_labels) +
+  theme(
+    legend.title = element_text(
+      size = fontsize,
+      face = 'bold',
+      color = 'black'
+    ),
+    plot.title = element_text(size = 12)
+  ) +
+  scale_shape_manual(values = c(16, 17), labels = trt_labels) +
+  annotate(
+    "text",
+    x = Inf,
+    y = Inf,
+    hjust = 2,
+    vjust = 2,
+    label = bquote(atop(
+      R^2 == .(round(uunifrac_adon[1, 3], 3)),
+      p == .(round(uunifrac_adon[1, 5], 3))
+    ))
+  )
 
-wunifrac.plot.nmds <- plot_ordination(bac_base_end, wunifrac.ord.nmds, color = "timepoint", shape = "arm") + 
-              labs(title="Weighted UniFrac", color = "Timepoint", shape = "Intervention Arm") + 
-              geom_point(size=4) + 
-              scale_color_discrete(labels=time_labels) +
-              theme(legend.title= element_text(size = fontsize, face='bold', color='black'), plot.title = element_text(size = 12)) +
-              scale_shape_manual(values = c(16,17), labels = trt_labels)+ 
-   annotate("text", x = Inf, y = Inf, hjust = 2, vjust = 2, label = bquote(atop(R^2 == .(round(wunifrac_adon[1,3],3)), p == .(round(wunifrac_adon[1,5],3)))))
+wunifrac.plot.nmds <- plot_ordination(
+  bac_base_end,
+  wunifrac.ord.nmds,
+  color = "timepoint",
+  shape = "arm"
+) +
+  labs(
+    title = "Weighted UniFrac",
+    color = "Timepoint",
+    shape = "Intervention Arm"
+  ) +
+  geom_point(size = 4) +
+  scale_color_discrete(labels = time_labels) +
+  theme(
+    legend.title = element_text(
+      size = fontsize,
+      face = 'bold',
+      color = 'black'
+    ),
+    plot.title = element_text(size = 12)
+  ) +
+  scale_shape_manual(values = c(16, 17), labels = trt_labels) +
+  annotate(
+    "text",
+    x = Inf,
+    y = Inf,
+    hjust = 2,
+    vjust = 2,
+    label = bquote(atop(
+      R^2 == .(round(wunifrac_adon[1, 3], 3)),
+      p == .(round(wunifrac_adon[1, 5], 3))
+    ))
+  )
 
-ggarrange(bray.plot.nmds, jac.plot.nmds, uunifrac.plot.nmds, wunifrac.plot.nmds,ncol = 2, nrow=2, common.legend = T, legend = "bottom", labels = "AUTO")
+ggarrange(
+  bray.plot.nmds,
+  jac.plot.nmds,
+  uunifrac.plot.nmds,
+  wunifrac.plot.nmds,
+  ncol = 2,
+  nrow = 2,
+  common.legend = T,
+  legend = "bottom",
+  labels = "AUTO"
+)
 
 ```
 
@@ -371,50 +697,113 @@ ggarrange(bray.plot.nmds, jac.plot.nmds, uunifrac.plot.nmds, wunifrac.plot.nmds,
 #| label: Base-End Bacteria Beta diversity stat summary table
 
 subsets <- list(
-baseCPM = phyloseq::subset_samples(bac_base_end, timepoint == "Baseline" & arm == "CPM"),
-endCPM = phyloseq::subset_samples(bac_base_end, timepoint == "Endpoint" & arm == "CPM"),
-baseFe = phyloseq::subset_samples(bac_base_end, timepoint == "Baseline" & arm == "FeZnPM"),
-endFe = phyloseq::subset_samples(bac_base_end, timepoint == "Endpoint" & arm == "FeZnPM")
+  baseCPM = phyloseq::subset_samples(
+    bac_base_end,
+    timepoint == "Baseline" & arm == "CPM"
+  ),
+  endCPM = phyloseq::subset_samples(
+    bac_base_end,
+    timepoint == "Endpoint" & arm == "CPM"
+  ),
+  baseFe = phyloseq::subset_samples(
+    bac_base_end,
+    timepoint == "Baseline" & arm == "FeZnPM"
+  ),
+  endFe = phyloseq::subset_samples(
+    bac_base_end,
+    timepoint == "Endpoint" & arm == "FeZnPM"
+  )
 )
 
 list <- list(
-bray_Baseline_CPM = phyloseq::distance(subsets$baseCPM, method = "bray"),
-jaccard_Baseline_CPM = phyloseq::distance(subsets$baseCPM, method = "jaccard"),
-uunifrac_Baseline_CPM = phyloseq::distance(subsets$baseCPM, method = "uunifrac"),
-wunifrac_Baseline_CPM = phyloseq::distance(subsets$baseCPM, method = "wunifrac"),
-bray_Endpoint_CPM = phyloseq::distance(subsets$endCPM, method = "bray"),
-jaccard_Endpoint_CPM = phyloseq::distance(subsets$endCPM, method = "jaccard"),
-uunifrac_Endpoint_CPM = phyloseq::distance(subsets$endCPM, method = "uunifrac"),
-wunifrac_Endpoint_CPM = phyloseq::distance(subsets$endCPM, method = "wunifrac"),
-bray_Baseline_FeZnPM = phyloseq::distance(subsets$baseFe, method = "bray"),
-jaccard_Baseline_FeZnPM = phyloseq::distance(subsets$baseFe, method = "jaccard"),
-uunifrac_Baseline_FeZnPM = phyloseq::distance(subsets$baseFe, method = "uunifrac"),
-wunifrac_Baseline_FeZnPM = phyloseq::distance(subsets$baseFe, method = "wunifrac"),
-bray_Endpoint_FeZnPM = phyloseq::distance(subsets$endFe, method = "bray"),
-jaccard_Endpoint_FeZnPM = phyloseq::distance(subsets$endFe, method = "jaccard"),
-uunifrac_Endpoint_FeZnPM = phyloseq::distance(subsets$endFe, method = "uunifrac"),
-wunifrac_Endpoint_FeZnPM = phyloseq::distance(subsets$endFe, method = "wunifrac")
+  bray_Baseline_CPM = phyloseq::distance(subsets$baseCPM, method = "bray"),
+  jaccard_Baseline_CPM = phyloseq::distance(
+    subsets$baseCPM,
+    method = "jaccard"
+  ),
+  uunifrac_Baseline_CPM = phyloseq::distance(
+    subsets$baseCPM,
+    method = "uunifrac"
+  ),
+  wunifrac_Baseline_CPM = phyloseq::distance(
+    subsets$baseCPM,
+    method = "wunifrac"
+  ),
+  bray_Endpoint_CPM = phyloseq::distance(subsets$endCPM, method = "bray"),
+  jaccard_Endpoint_CPM = phyloseq::distance(subsets$endCPM, method = "jaccard"),
+  uunifrac_Endpoint_CPM = phyloseq::distance(
+    subsets$endCPM,
+    method = "uunifrac"
+  ),
+  wunifrac_Endpoint_CPM = phyloseq::distance(
+    subsets$endCPM,
+    method = "wunifrac"
+  ),
+  bray_Baseline_FeZnPM = phyloseq::distance(subsets$baseFe, method = "bray"),
+  jaccard_Baseline_FeZnPM = phyloseq::distance(
+    subsets$baseFe,
+    method = "jaccard"
+  ),
+  uunifrac_Baseline_FeZnPM = phyloseq::distance(
+    subsets$baseFe,
+    method = "uunifrac"
+  ),
+  wunifrac_Baseline_FeZnPM = phyloseq::distance(
+    subsets$baseFe,
+    method = "wunifrac"
+  ),
+  bray_Endpoint_FeZnPM = phyloseq::distance(subsets$endFe, method = "bray"),
+  jaccard_Endpoint_FeZnPM = phyloseq::distance(
+    subsets$endFe,
+    method = "jaccard"
+  ),
+  uunifrac_Endpoint_FeZnPM = phyloseq::distance(
+    subsets$endFe,
+    method = "uunifrac"
+  ),
+  wunifrac_Endpoint_FeZnPM = phyloseq::distance(
+    subsets$endFe,
+    method = "wunifrac"
+  )
 )
 
 list <- lapply(list, as.numeric)
 
-betadivCPM <- data.frame(list$bray_Baseline_CPM, list$jaccard_Baseline_CPM, list$uunifrac_Baseline_CPM, list$wunifrac_Baseline_CPM, list$bray_Endpoint_CPM, list$jaccard_Endpoint_CPM, list$uunifrac_Endpoint_CPM, list$wunifrac_Endpoint_CPM)
+betadivCPM <- data.frame(
+  list$bray_Baseline_CPM,
+  list$jaccard_Baseline_CPM,
+  list$uunifrac_Baseline_CPM,
+  list$wunifrac_Baseline_CPM,
+  list$bray_Endpoint_CPM,
+  list$jaccard_Endpoint_CPM,
+  list$uunifrac_Endpoint_CPM,
+  list$wunifrac_Endpoint_CPM
+)
 
 betadivCPM$id <- seq_len(nrow(betadivCPM))
 betadivCPM <- betadivCPM %>%
-  pivot_longer(cols = -id, names_to = "variable",values_to = "value") %>%
+  pivot_longer(cols = -id, names_to = "variable", values_to = "value") %>%
   mutate(variable = str_remove_all(variable, "list|\\.")) %>%
-  separate(variable, into = c("metric", "timepoint", "arm"), sep = "_")%>%
+  separate(variable, into = c("metric", "timepoint", "arm"), sep = "_") %>%
   pivot_wider(names_from = metric) %>%
   dplyr::select(!id)
 
-betadivFeZnPM <- data.frame(list$bray_Baseline_FeZnPM, list$jaccard_Baseline_FeZnPM, list$uunifrac_Baseline_FeZnPM, list$wunifrac_Baseline_FeZnPM, list$bray_Endpoint_FeZnPM, list$jaccard_Endpoint_FeZnPM, list$uunifrac_Endpoint_FeZnPM, list$wunifrac_Endpoint_FeZnPM)
+betadivFeZnPM <- data.frame(
+  list$bray_Baseline_FeZnPM,
+  list$jaccard_Baseline_FeZnPM,
+  list$uunifrac_Baseline_FeZnPM,
+  list$wunifrac_Baseline_FeZnPM,
+  list$bray_Endpoint_FeZnPM,
+  list$jaccard_Endpoint_FeZnPM,
+  list$uunifrac_Endpoint_FeZnPM,
+  list$wunifrac_Endpoint_FeZnPM
+)
 
 betadivFeZnPM$id <- seq_len(nrow(betadivFeZnPM))
 betadivFeZnPM <- betadivFeZnPM %>%
-  pivot_longer(cols = -id, names_to = "variable",values_to = "value") %>%
+  pivot_longer(cols = -id, names_to = "variable", values_to = "value") %>%
   mutate(variable = str_remove_all(variable, "list|\\.")) %>%
-  separate(variable, into = c("metric", "timepoint", "arm"), sep = "_")%>%
+  separate(variable, into = c("metric", "timepoint", "arm"), sep = "_") %>%
   pivot_wider(names_from = metric) %>%
   dplyr::select(!id)
 
@@ -430,28 +819,52 @@ bac_base_end_betadiv <- bind_rows(betadivCPM, betadivFeZnPM)
 vda <- function(data, variable, by, ...) {
   # Compute VD.A
   A <- effsize::VD.A(as.formula(glue::glue("`{variable}` ~ {by}")), data = data)
-  tibble(vda_estimate  = A$estimate, vda_magnitude = A$magnitude)
+  tibble(vda_estimate = A$estimate, vda_magnitude = A$magnitude)
 }
 
-(p <- bac_base_end_betadiv %>% tbl_strata(strata = timepoint, .tbl_fun = ~ .x %>% 
-              tbl_summary(
-                by = arm,
-                digits = everything() ~ 2, 
-                missing = "no", 
-                statistic = list(
-                  all_continuous() ~ "{median}  \n({IQR}; {min}-{max})", # stats and format for continuous columns
-                  all_categorical() ~ "{n} / {N}  \n({p}%)")) %>% # stats and format for categorical columns
-                add_n() %>%
-                add_overall() %>%
-                add_p(everything() ~ "wilcox.test", pvalue_fun = function(x) style_pvalue(x, digits = 3)) %>%
-                add_q(pvalue_fun = function(x) style_pvalue(x, digits = 3)) %>%
-                bold_p(q = T) %>%
-                add_stat(fns = all_continuous() ~ vda) %>%
-                modify_fmt_fun(list(vda_magnitude ~ as.character)) %>%
-                modify_header(list(vda_estimate ~ "**Effect Size Estimate**", vda_magnitude ~ "**Magnitude**")),                .header = "**{strata}**, N = {n}") %>%
-		as_gt() %>% fmt_markdown(columns=where(~is.character(.x))) %>% fmt_number(columns = everything(), drop_trailing_zeros = TRUE) %>% fmt_number(columns = where(~is.numeric(.x)<0.0001), pattern = "<0.0001") %>% fmt_number(columns = where(~is.numeric(.x)<0.001), pattern = "<0.001")%>% fmt_number(columns = where(~is.numeric(.x)<0.01), pattern = "<0.01")%>% fmt_integer(columns = where(~is.numeric(.x)<0.05), pattern = "<0.05"))
+(p <- bac_base_end_betadiv %>%
+  tbl_strata(
+    strata = timepoint,
+    .tbl_fun = ~ .x %>%
+      tbl_summary(
+        by = arm,
+        digits = everything() ~ 2,
+        missing = "no",
+        statistic = list(
+          all_continuous() ~ "{median}  \n({IQR}; {min}-{max})", # stats and format for continuous columns
+          all_categorical() ~ "{n} / {N}  \n({p}%)"
+        )
+      ) %>% # stats and format for categorical columns
+      add_n() %>%
+      add_overall() %>%
+      add_p(everything() ~ "wilcox.test", pvalue_fun = function(x) {
+        style_pvalue(x, digits = 3)
+      }) %>%
+      add_q(pvalue_fun = function(x) style_pvalue(x, digits = 3)) %>%
+      bold_p(q = T) %>%
+      add_stat(fns = all_continuous() ~ vda) %>%
+      modify_fmt_fun(list(vda_magnitude ~ as.character)) %>%
+      modify_header(list(
+        vda_estimate ~ "**Effect Size Estimate**",
+        vda_magnitude ~ "**Magnitude**"
+      )),
+    .header = "**{strata}**, N = {n}"
+  ) %>%
+  as_gt() %>%
+  fmt_markdown(columns = where(~ is.character(.x))) %>%
+  fmt_number(columns = everything(), drop_trailing_zeros = TRUE) %>%
+  fmt_number(
+    columns = where(~ is.numeric(.x) < 0.0001),
+    pattern = "<0.0001"
+  ) %>%
+  fmt_number(columns = where(~ is.numeric(.x) < 0.001), pattern = "<0.001") %>%
+  fmt_number(columns = where(~ is.numeric(.x) < 0.01), pattern = "<0.01") %>%
+  fmt_integer(columns = where(~ is.numeric(.x) < 0.05), pattern = "<0.05"))
 
-htmltools::save_html(gt::as_raw_html(p), file.path(RESULTS, "base-end-diversity-analysis/beta-div.tbl"))
+htmltools::save_html(
+  gt::as_raw_html(p),
+  file.path(RESULTS, "base-end-diversity-analysis/beta-div.tbl")
+)
 
 ```
 
