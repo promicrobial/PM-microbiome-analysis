@@ -87,7 +87,13 @@
 #' @importFrom glmmTMB glmmTMB
 #' @importFrom stats p.adjust
 #' @importFrom dplyr arrange
-genZI <- function(outcome, predictors, family = nbinom2) {
+genZI <- function(
+  outcome,
+  predictors,
+  formula = NULL,
+  zi = "~ 1",
+  family = nbinom2
+) {
   if (!is.matrix(outcome) && !is.data.frame(outcome)) {
     stop("Outcome must be a matrix or data frame")
   }
@@ -96,15 +102,40 @@ genZI <- function(outcome, predictors, family = nbinom2) {
     stop("Predictor variables cannot contain NA values")
   }
 
-  # Ensure proper factor levels
-  predictors$subject <- factor(predictors$subject)
-  predictors$arm <- factor(predictors$arm)
-  predictors$time <- as.numeric(predictors$time)
-  predictors$age_B <- as.numeric(predictors$age_B)
+  # Handle formula specification
+  if (is.null(formula)) {
+    formula <- as.formula("y ~ arm * time + age_B + (1 | subject)")
+  } else if (is.character(formula)) {
+    # If formula doesn't start with y~, add it
+    if (!grepl("^y\\s*~", formula)) {
+      formula <- paste("y ~", formula)
+    }
+    formula <- try(as.formula(formula), silent = TRUE)
+    if (inherits(formula, "try-error")) {
+      stop("Could not create valid formula from input string")
+    }
+  } else if (!inherits(formula, "formula")) {
+    stop("formula must be NULL, a character string, or a formula object")
+  }
 
-  # Verify numeric variables
-  if (!is.numeric(predictors$time) || !is.numeric(predictors$age_B)) {
-    stop("time and age_B must be numeric variables")
+  # Verify formula is valid
+  tryCatch(
+    {
+      terms(formula)
+    },
+    error = function(e) {
+      stop("Invalid formula structure: ", conditionMessage(e))
+    }
+  )
+
+  # Handle zi formula
+  if (is.character(zi)) {
+    zi <- try(as.formula(zi), silent = TRUE)
+    if (inherits(zi, "try-error")) {
+      stop("Could not create valid zero-inflation formula from input string")
+    }
+  } else if (!inherits(zi, "formula")) {
+    stop("zi must be a character string or a formula object")
   }
 
   # Initialize variables
@@ -121,10 +152,9 @@ genZI <- function(outcome, predictors, family = nbinom2) {
     title = "Processing OGUs"
   )
 
-  # Initialize results matrices and data frames
-  coef_names <- c("intercept", "time", "arm", "age_B", "interaction")
-  results_matrix <- matrix(NA, nrow = n_outcomes, ncol = length(coef_names))
-  colnames(results_matrix) <- coef_names
+  # Initialize results matrices and data frames with NULL
+  results_matrix <- NULL
+  coef_names <- NULL
 
   # Initialize model summary
   model_summary <- data.frame(
@@ -140,16 +170,17 @@ genZI <- function(outcome, predictors, family = nbinom2) {
   # Store all model results
   all_models <- vector("list", n_outcomes)
   names(all_models) <- outcome_ids
+
+  # Initialize coefficient storage after first successful model fit
+  first_model_fitted <- FALSE
+
   for (i in 1:n_outcomes) {
     counter()
     current_outcome <- outcome[, i]
 
-    # Check for NA values in outcome
     if (anyNA(current_outcome)) {
       model_summary$error_message[i] <- "Outcome contains NA values"
       next
-    } else {
-      model_summary$error_message[i] <- "No errors"
     }
 
     # Prepare model data
@@ -163,7 +194,7 @@ genZI <- function(outcome, predictors, family = nbinom2) {
     model_summary$zero_prop[i] <- mean(current_outcome == 0)
 
     # Fit model
-    model_fit <- fit_zinb_model(model_data, family)
+    model_fit <- fit_zinb_model(model_data, family, formula = formula, zi = zi)
     all_models[[i]] <- model_fit$model
 
     # Update model summary
@@ -180,38 +211,98 @@ genZI <- function(outcome, predictors, family = nbinom2) {
     model_summary$AIC[i] <- diagnostics$fit_stats$AIC
     model_summary$BIC[i] <- diagnostics$fit_stats$BIC
 
-    if (model_fit$converged) {
-      results_matrix[i, ] <- diagnostics$coefficients$conditional[1:5, 4]
+    # Initialize results matrix after first successful model fit
+    if (
+      !first_model_fitted &&
+        model_fit$converged &&
+        !is.null(diagnostics$coefficients)
+    ) {
+      coef_names <- rownames(diagnostics$coefficients$conditional)
+      results_matrix <- matrix(
+        NA,
+        nrow = n_outcomes,
+        ncol = length(coef_names),
+        dimnames = list(NULL, coef_names)
+      )
+      first_model_fitted <- TRUE
+    }
+
+    # Store coefficients if model converged and matrix is initialized
+    if (
+      model_fit$converged &&
+        !is.null(results_matrix) &&
+        !is.null(diagnostics$coefficients)
+    ) {
+      results_matrix[i, ] <- diagnostics$coefficients$conditional[, 4] # p-values
     }
   }
 
-  # Create results with adjusted p-values
-  adj_results <- data.frame(
-    outcome_id = outcome_ids,
-    setNames(
-      lapply(coef_names, function(x) {
-        round(p.adjust(results_matrix[, x], method = "BH"), 4)
-      }),
-      coef_names
+  # Create results with adjusted p-values only if we have coefficients
+  if (!is.null(results_matrix) && !is.null(coef_names)) {
+    adj_results <- data.frame(
+      outcome_id = outcome_ids,
+      setNames(
+        lapply(coef_names, function(x) {
+          round(p.adjust(results_matrix[, x], method = "BH"), 4)
+        }),
+        coef_names
+      )
     )
-  )
 
-  return(list(
-    adj_results = adj_results,
-    model_summary = model_summary,
-    all_models = all_models
-  ))
+    return(list(
+      adj_results = adj_results,
+      model_summary = model_summary,
+      all_models = all_models
+    ))
+  } else {
+    return(list(
+      model_summary = model_summary,
+      all_models = all_models
+    ))
+  }
 }
 
-fit_zinb_model <- function(data, family) {
+
+fit_zinb_model <- function(data, family, formula, zi = "~ 1") {
   tryCatch(
     {
+      # Ensure proper formula construction
+      if (!inherits(formula, "formula")) {
+        if (is.character(formula)) {
+          formula <- as.formula(formula)
+        } else {
+          stop("Invalid formula specification")
+        }
+      }
+
+      # Ensure proper zi formula construction
+      if (!inherits(zi, "formula")) {
+        if (is.character(zi)) {
+          zi <- as.formula(zi)
+        } else {
+          stop("Invalid zero-inflation formula specification")
+        }
+      }
+
+      # Better formula validation
+      if (!inherits(formula, "formula")) {
+        stop("Invalid formula after processing")
+      }
+
+      # Check if formula has response variable
+      terms <- terms(formula)
+      if (attr(terms, "response") == 0) {
+        formula <- update(formula, y ~ .)
+      }
+
+      # Fit model
       model <- glmmTMB(
-        y ~ arm * time + age_B + (1 | subject),
-        zi = ~ arm * time,
+        formula = formula,
+        ziformula = zi,
         data = data,
         family = family
       )
+
       return(list(
         model = model,
         converged = TRUE,
@@ -219,6 +310,7 @@ fit_zinb_model <- function(data, family) {
       ))
     },
     error = function(e) {
+      message("Error in model fitting: ", conditionMessage(e))
       return(list(
         model = NULL,
         converged = FALSE,
@@ -236,6 +328,14 @@ zinb_diagnostics <- function(model, data) {
   require(DHARMa)
   require(performance)
 
+  if (is.null(model)) {
+    return(list(
+      convergence = list(converged = FALSE),
+      coefficients = NULL,
+      fit_stats = list(AIC = NA, BIC = NA)
+    ))
+  }
+
   # 1. Basic convergence check
   convergence <- list(
     converged = !is.null(model$fit$convergence) &&
@@ -245,10 +345,19 @@ zinb_diagnostics <- function(model, data) {
   )
 
   # 2. Model coefficients and their stability
-  coef_summary <- list(
-    conditional = summary(model)$coefficients$cond,
-    zero_inflation = summary(model)$coefficients$zi,
-    random_effects = VarCorr(model)
+  # Get coefficient summary with error handling
+  coef_summary <- tryCatch(
+    {
+      sum_model <- summary(model)
+      list(
+        conditional = sum_model$coefficients$cond,
+        zero_inflation = sum_model$coefficients$zi,
+        random_effects = VarCorr(model)
+      )
+    },
+    error = function(e) {
+      return(NULL)
+    }
   )
 
   # 3. Create DHARMa residuals
@@ -277,49 +386,12 @@ zinb_diagnostics <- function(model, data) {
     df.residual = df.residual(model)
   )
 
-  # 5. Zero-inflation assessment
-  zero_stats <- list(
-    observed_zeros = sum(data$y == 0),
-    total_obs = nrow(data),
-    zero_proportion = mean(data$y == 0)
-  )
-
-  # 6. Random effects assessment
-  ranef_stats <- tryCatch(
-    {
-      re <- ranef(model)
-      list(
-        variance_components = VarCorr(model),
-        icc = performance::icc(model),
-        ranef_summary = list(
-          mean = mean(unlist(re$cond$subject)),
-          sd = sd(unlist(re$cond$subject)),
-          quantiles = quantile(
-            unlist(re$cond$subject),
-            probs = c(0.025, 0.25, 0.5, 0.75, 0.975)
-          )
-        )
-      )
-    },
-    error = function(e) NULL
-  )
-
-  # 7. Model predictions
-  predictions <- list(
-    fitted_values = fitted(model),
-    predicted_probs = predict(model, type = "response")
-  )
-
   # Return all diagnostics
   return(list(
     convergence = convergence,
     coefficients = coef_summary,
     dharma_residuals = dharma_residuals,
-    fit_stats = fit_stats,
-    zero_stats = zero_stats,
-    ranef_stats = ranef_stats,
-    predictions = predictions,
-    model = model
+    fit_stats = fit_stats
   ))
 }
 
@@ -1461,4 +1533,278 @@ plot_dharma_summary <- function(dharma_results) {
 
   # Combine plots
   (p1 + p2) / (p3 + p4)
+}
+
+#FIX does not work as expected
+#' Diagnose Zero-Inflated Models
+#' @description
+#' Runs diagnostics on a list of zero-inflated models using the `diagnose` function
+#' from the `DHARMa` package. It captures any errors and warnings during the process
+#' and returns a data frame summarizing the results.
+#' @param modelList A list of fitted zero-inflated models to be diagnosed
+#' @return A data frame with the following columns:
+#'   \itemize{
+#'     \item message: Diagnostic message indicating model status
+#'     \item pass: Logical indicating whether the model passed the diagnostics
+#'   }
+#' @importFrom DHARMa diagnose
+#' @importFrom dplyr mutate
+#' @importFrom dplyr if_else
+#' @importFrom dplyr as.data.frame
+#' @importFrom dplyr rbind
+#' @importFrom dplyr suppressMessages
+#' @importFrom dplyr suppressWarnings
+#' @importFrom dplyr lapply
+#' @importFrom dplyr tryCatch
+#' @importFrom dplyr conditionMessage
+#' @importFrom dplyr rownames_to_column
+#' @importFrom dplyr as.data.frame
+#' @importFrom dplyr mutate
+#'
+#' # @examples
+#' \dontrun{
+#' # Assuming `modelList` is a list of fitted zero-inflated models
+#' diagnostics <- diagnoseZI(modelList)
+#' print(diagnostics)
+#' }
+#' @export
+diagnoseZI <- function(modelList) {
+  invisible(suppressWarnings(suppressMessages({
+    d <- lapply(modelList, function(x) {
+      tryCatch(
+        {
+          f <- diagnose(x)
+
+          if (f == TRUE) {
+            d <- "Model looks ok!"
+          } else {
+            d <- "Issues with model"
+          }
+        },
+        error = function(e) {
+          return(list(
+            message = as.character(e)
+          ))
+        }
+      )
+    })
+  })))
+
+  df <- do.call(rbind, d)
+  df <- as.data.frame(df) %>%
+    mutate(pass = ifelse(message == "Model looks ok!", TRUE, FALSE))
+
+  return(df)
+}
+
+#' Create ROC Curves for Zero-Inflated Models
+#' @param model_results Results from genZI function
+#' @param threshold Probability threshold for classification
+#' @return List containing ROC plots and AUC values
+#' @import pROC
+#' @import ggplot2
+create_zi_roc <- function(model_results, threshold = 0.5) {
+  require(pROC)
+  require(ggplot2)
+  require(dplyr)
+  require(patchwork)
+
+  # Initialize lists to store results
+  roc_results <- list()
+  plots <- list()
+
+  # Process each model
+  for (i in seq_along(model_results$all_models)) {
+    model <- model_results$all_models[[i]]
+    if (!is.null(model)) {
+      tryCatch(
+        {
+          # Get model predictions
+          pred_zero <- predict(model, type = "zprob") # Zero-inflation probability
+          pred_cond <- predict(model, type = "response") # Conditional prediction
+
+          # Get actual values
+          actual_zero <- model$frame$y == 0
+          actual_values <- model$frame$y
+
+          # Calculate ROC for zero component
+          roc_zero <- roc(actual_zero, pred_zero)
+
+          # Calculate ROC for conditional component
+          # For this, we'll use median split of non-zero values
+          non_zero_median <- median(actual_values[actual_values > 0])
+          actual_high <- actual_values > non_zero_median
+          roc_cond <- roc(actual_high, pred_cond)
+
+          # Store results
+          roc_results[[i]] <- list(
+            model_id = names(model_results$all_models)[i],
+            zero_component = list(
+              auc = auc(roc_zero),
+              sensitivity = roc_zero$sensitivities,
+              specificity = roc_zero$specificities,
+              thresholds = roc_zero$thresholds
+            ),
+            conditional_component = list(
+              auc = auc(roc_cond),
+              sensitivity = roc_cond$sensitivities,
+              specificity = roc_cond$specificities,
+              thresholds = roc_cond$thresholds
+            )
+          )
+
+          # Create plots
+          plots[[i]] <- list(
+            zero = ggplot() +
+              geom_path(aes(
+                x = 1 - roc_zero$specificities,
+                y = roc_zero$sensitivities
+              )) +
+              geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+              coord_equal() +
+              labs(
+                title = paste(
+                  "Zero Component ROC -",
+                  names(model_results$all_models)[i]
+                ),
+                subtitle = paste("AUC =", round(auc(roc_zero), 3)),
+                x = "False Positive Rate",
+                y = "True Positive Rate"
+              ) +
+              theme_minimal(),
+
+            conditional = ggplot() +
+              geom_path(aes(
+                x = 1 - roc_cond$specificities,
+                y = roc_cond$sensitivities
+              )) +
+              geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+              coord_equal() +
+              labs(
+                title = paste(
+                  "Conditional Component ROC -",
+                  names(model_results$all_models)[i]
+                ),
+                subtitle = paste("AUC =", round(auc(roc_cond), 3)),
+                x = "False Positive Rate",
+                y = "True Positive Rate"
+              ) +
+              theme_minimal()
+          )
+        },
+        error = function(e) {
+          message("Error processing model ", i, ": ", conditionMessage(e))
+        }
+      )
+    }
+  }
+
+  # Create summary data frame
+  summary_df <- do.call(
+    rbind,
+    lapply(roc_results, function(x) {
+      data.frame(
+        model_id = x$model_id,
+        zero_auc = x$zero_component$auc,
+        conditional_auc = x$conditional_component$auc
+      )
+    })
+  )
+
+  # Create summary plots
+  auc_distribution <- ggplot(summary_df) +
+    geom_density(aes(x = zero_auc, fill = "Zero"), alpha = 0.5) +
+    geom_density(aes(x = conditional_auc, fill = "Conditional"), alpha = 0.5) +
+    labs(
+      title = "Distribution of AUC Values",
+      x = "AUC",
+      y = "Density",
+      fill = "Component"
+    ) +
+    theme_minimal()
+
+  # Create composite plot of best performing models
+  best_zero <- which.max(sapply(roc_results, function(x) x$zero_component$auc))
+  best_cond <- which.max(sapply(roc_results, function(x) {
+    x$conditional_component$auc
+  }))
+
+  best_models_plot <- (plots[[best_zero]]$zero +
+    plots[[best_cond]]$conditional) +
+    plot_layout(ncol = 2) +
+    plot_annotation(
+      title = "ROC Curves for Best Performing Models",
+      theme = theme_minimal()
+    )
+
+  return(list(
+    roc_results = roc_results,
+    summary = summary_df,
+    plots = plots,
+    auc_distribution = auc_distribution,
+    best_models = best_models_plot
+  ))
+}
+
+#' Print ROC Analysis Summary
+#' @param roc_results Results from create_zi_roc function
+print_roc_summary <- function(roc_results) {
+  cat("\nROC Analysis Summary\n")
+  cat("==================\n\n")
+
+  # Summary statistics
+  summary_stats <- roc_results$summary %>%
+    summarise(
+      n_models = n(),
+      mean_zero_auc = mean(zero_auc, na.rm = TRUE),
+      mean_cond_auc = mean(conditional_auc, na.rm = TRUE),
+      sd_zero_auc = sd(zero_auc, na.rm = TRUE),
+      sd_cond_auc = sd(conditional_auc, na.rm = TRUE),
+      min_zero_auc = min(zero_auc, na.rm = TRUE),
+      min_cond_auc = min(conditional_auc, na.rm = TRUE),
+      max_zero_auc = max(zero_auc, na.rm = TRUE),
+      max_cond_auc = max(conditional_auc, na.rm = TRUE)
+    )
+
+  cat("Number of models analyzed:", summary_stats$n_models, "\n\n")
+
+  cat("Zero-Inflation Component:\n")
+  cat(
+    "  Mean AUC:",
+    round(summary_stats$mean_zero_auc, 3),
+    "±",
+    round(summary_stats$sd_zero_auc, 3),
+    "\n"
+  )
+  cat(
+    "  Range:",
+    round(summary_stats$min_zero_auc, 3),
+    "to",
+    round(summary_stats$max_zero_auc, 3),
+    "\n\n"
+  )
+
+  cat("Conditional Component:\n")
+  cat(
+    "  Mean AUC:",
+    round(summary_stats$mean_cond_auc, 3),
+    "±",
+    round(summary_stats$sd_cond_auc, 3),
+    "\n"
+  )
+  cat(
+    "  Range:",
+    round(summary_stats$min_cond_auc, 3),
+    "to",
+    round(summary_stats$max_cond_auc, 3),
+    "\n\n"
+  )
+
+  # Top performing models
+  top_models <- roc_results$summary %>%
+    arrange(desc(zero_auc)) %>%
+    head(5)
+
+  cat("Top 5 Models by Zero-Inflation AUC:\n")
+  print(knitr::kable(top_models))
 }
