@@ -162,6 +162,7 @@ genZI <- function(
     converged = logical(n_outcomes),
     AIC = numeric(n_outcomes),
     BIC = numeric(n_outcomes),
+    dispersion = numeric(n_outcomes),
     zero_prop = numeric(n_outcomes),
     error_message = character(n_outcomes),
     stringsAsFactors = FALSE
@@ -210,6 +211,7 @@ genZI <- function(
     # Update summary statistics
     model_summary$AIC[i] <- diagnostics$fit_stats$AIC
     model_summary$BIC[i] <- diagnostics$fit_stats$BIC
+    model_summary$dispersion[i] <- diagnostics$fit_stats$dispersion
 
     # Initialize results matrix after first successful model fit
     if (
@@ -332,7 +334,13 @@ zinb_diagnostics <- function(model, data) {
     return(list(
       convergence = list(converged = FALSE),
       coefficients = NULL,
-      fit_stats = list(AIC = NA, BIC = NA)
+      fit_stats = list(
+        AIC = NA,
+        BIC = NA,
+        dispersion = NA,
+        logLik = NA,
+        df.residual = NA
+      )
     ))
   }
 
@@ -382,6 +390,7 @@ zinb_diagnostics <- function(model, data) {
   fit_stats <- list(
     AIC = AIC(model),
     BIC = BIC(model),
+    dispersion = sigma(model), #dispersion paramter
     logLik = logLik(model),
     df.residual = df.residual(model)
   )
