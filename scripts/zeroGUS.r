@@ -1608,26 +1608,33 @@ diagnoseZI <- function(modelList) {
         {
           f <- diagnose(x)
 
-          if (f == TRUE) {
-            d <- "Model looks ok!"
-          } else {
-            d <- "Issues with model"
-          }
+          # Create result list
+          result <- list(
+            message = if (isTRUE(f)) "Model looks ok!" else "Issues with model",
+            status = isTRUE(f)
+          )
+
+          return(result)
         },
         error = function(e) {
           return(list(
-            message = as.character(e)
+            message = as.character(e),
+            status = FALSE
           ))
         }
       )
     })
+
+    # Convert to data frame
+    df <- data.frame(
+      model_id = names(modelList),
+      message = sapply(d, function(x) x$message),
+      pass = sapply(d, function(x) x$status),
+      stringsAsFactors = FALSE
+    )
+
+    return(df)
   })))
-
-  df <- do.call(rbind, d)
-  df <- as.data.frame(df) %>%
-    mutate(pass = ifelse(message == "Model looks ok!", TRUE, FALSE))
-
-  return(df)
 }
 
 #' Create ROC Curves for Zero-Inflated Models
