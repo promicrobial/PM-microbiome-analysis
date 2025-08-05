@@ -17,7 +17,7 @@ validate_phyloseq_input <- function(phyloseq_obj) {
 #' @param filter_abundance Logical, whether to apply abundance filter (default: FALSE)
 #' @param abundance_quantile Numeric, quantile to use for abundance filter (default: 0.9)
 #' @param abundance_cutoff Numeric, minimum value at specified quantile (default: 1)
-#' @param   rownames_as_samples Indicates if the input count data have sample names at rownames (default: FALSE)
+#' @param   rownames_as_samples Indicates if the input count data have sample names as rownames (default: FALSE)
 #' @return A list containing prepared OGU data, taxa data, and metadata
 prepare_ogu_data <- function(
   phyloseq_obj,
