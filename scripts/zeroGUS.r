@@ -195,8 +195,7 @@ genZI <- function(
     model_data <- data.frame(
       y = current_outcome,
       predictors
-    ) %>%
-      arrange(subject, time)
+    )
 
     # Calculate proportion of zeros
     model_summary$zero_prop[i] <- mean(current_outcome == 0)
