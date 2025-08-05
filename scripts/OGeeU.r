@@ -17,6 +17,7 @@ validate_phyloseq_input <- function(phyloseq_obj) {
 #' @param filter_abundance Logical, whether to apply abundance filter (default: FALSE)
 #' @param abundance_quantile Numeric, quantile to use for abundance filter (default: 0.9)
 #' @param abundance_cutoff Numeric, minimum value at specified quantile (default: 1)
+#' @param   rownames_as_samples Indicates if the input count data have sample names at rownames (default: FALSE)
 #' @return A list containing prepared OGU data, taxa data, and metadata
 prepare_ogu_data <- function(
   phyloseq_obj,
@@ -24,14 +25,19 @@ prepare_ogu_data <- function(
   prevalence_cutoff = 0.4,
   filter_abundance = FALSE,
   abundance_quantile = 0.9,
-  abundance_cutoff = 1
+  abundance_cutoff = 1,
+  rownames_as_samples = FALSE
 ) {
   validate_phyloseq_input(phyloseq_obj)
 
   tryCatch(
     {
       # Transform OGU data
-      ogu_data <- as.data.frame(t(otu_table(phyloseq_obj)))
+      if(rownames_as_samples == FALSE){
+        ogu_data <- as.data.frame(t(otu_table(phyloseq_obj)))
+      } else {
+        ogu_data <- as.data.frame(otu_table(phyloseq_obj))
+      }
 
       # Store original dimensions
       original_dims <- dim(ogu_data)
