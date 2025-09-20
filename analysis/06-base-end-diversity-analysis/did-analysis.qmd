@@ -22,20 +22,31 @@ If necessary, convert timepoints and intervention groups into dummy variables
 ```{r}
 #| eval: true
 #| label: preparing the data for DID analysis
-df <- bac_base_end_meta 
+df <- bac_base_end_meta
 
 df <- df %>%
-    select(displayid, timepoint, arm, observed,  chao1, diversity_shannon,  evenness_pielou, pd) %>%
-    mutate(timepoint = case_when(
-        timepoint == "Baseline" ~ 0,
-        timepoint == "Endpoint" ~ 1,
-    ))
+  select(
+    displayid,
+    timepoint,
+    arm,
+    observed,
+    chao1,
+    diversity_shannon,
+    evenness_pielou,
+    pd
+  ) %>%
+  mutate(
+    timepoint = case_when(
+      timepoint == "Baseline" ~ 0,
+      timepoint == "Endpoint" ~ 1,
+    )
+  )
 
 alpha_did <- list(
-  shannon_did = lm(diversity_shannon ~ arm * timepoint, data =df),
-  chao_did = lm(chao1 ~ arm * timepoint, data =df),
-  even_did = lm(evenness_pielou ~ arm * timepoint, data =df),
-  pd_did = lm(pd ~ arm * timepoint, data =df)
+  shannon_did = lm(diversity_shannon ~ arm * timepoint, data = df),
+  chao_did = lm(chao1 ~ arm * timepoint, data = df),
+  even_did = lm(evenness_pielou ~ arm * timepoint, data = df),
+  pd_did = lm(pd ~ arm * timepoint, data = df)
 )
 ```
 
@@ -44,7 +55,7 @@ alpha_did <- list(
 #| label: tbl-lm-sum
 #| tbl-cap: Summary of simple alpha diveristy linear models with formula y ~ arm * timepoint
 
-stargazer::stargazer(alpha_did, type="text")
+stargazer::stargazer(alpha_did, type = "html")
 ```
 
 The interaction coefficient is the differences-in-differences estimator. The effect is significant at 10% with the treatment having a negative effect. 
@@ -58,23 +69,53 @@ This code has been modified from [@Rothbard2023] and is available on [GitHub](gi
 #| label: did data prep
 #Read in data
 did <- bac_base_end_meta %>%
-        mutate(
-          time = scale_values(as.numeric(timesincefeedstart)), # numeric (days)
-          timepoint = factor(timepoint),
-          arm = factor(arm),          
-          agedays_rounded = as.numeric(agedays_rounded)
-        ) %>%
-        group_by(displayid) %>%
-        arrange(agedays_rounded, .by_group = TRUE) %>%
-        mutate(ageAtBaseline = case_when(
-            str_detect(timepoint, "Baseline") ~ agedays_rounded,
-            FALSE ~ NA)) %>%
-        fill(ageAtBaseline) %>%
-        ungroup() %>%
-        mutate(ageAtBaseline = scale_values(ageAtBaseline)) %>%
-        select(displayid, ageAtBaseline, time, timepoint, arm, observed, chao1, diversity_shannon, evenness_pielou, pd, fer_def12_base, sexf) 
+  mutate(
+    time = scale_values(as.numeric(timesincefeedstart)), # numeric (days)
+    timepoint = factor(timepoint),
+    arm = factor(arm),
+    agedays_rounded = as.numeric(agedays_rounded)
+  ) %>%
+  group_by(displayid) %>%
+  arrange(agedays_rounded, .by_group = TRUE) %>%
+  mutate(
+    ageAtBaseline = case_when(
+      str_detect(timepoint, "Baseline") ~ agedays_rounded,
+      FALSE ~ NA
+    )
+  ) %>%
+  fill(ageAtBaseline) %>%
+  ungroup() %>%
+  mutate(ageAtBaseline = scale_values(ageAtBaseline)) %>%
+  select(
+    displayid,
+    ageAtBaseline,
+    time,
+    timepoint,
+    arm,
+    observed,
+    chao1,
+    diversity_shannon,
+    evenness_pielou,
+    pd,
+    fer_def12_base,
+    sexf
+  )
 
-did_df <- did %>% select(displayid, ageAtBaseline, time, timepoint, arm, `Observed features` = observed, `Chao 1 Index` = chao1, `Shannon Diversity Index` = diversity_shannon, Evenness = evenness_pielou,`Faiths Phylogenetic Diversity` = pd, fer_def12_base, sexf) 
+did_df <- did %>%
+  select(
+    displayid,
+    ageAtBaseline,
+    time,
+    timepoint,
+    arm,
+    `Observed features` = observed,
+    `Chao 1 Index` = chao1,
+    `Shannon Diversity Index` = diversity_shannon,
+    Evenness = evenness_pielou,
+    `Faiths Phylogenetic Diversity` = pd,
+    fer_def12_base,
+    sexf
+  )
 
 ```
 
@@ -83,8 +124,8 @@ did_df <- did %>% select(displayid, ageAtBaseline, time, timepoint, arm, `Observ
 #| label: tbl-did-1
 #| tbl-cap: Number of participants in each timepoint (paired samples)
 did_df %>%
-  tab_cells(timepoint)%>%
-  tab_stat_cases()%>%
+  tab_cells(timepoint) %>%
+  tab_stat_cases() %>%
   tab_pivot()
 ```
 
@@ -93,8 +134,8 @@ did_df %>%
 #| label: tbl-did-2
 #| tbl-cap: Number of participants in each arm
 did_df %>%
-  tab_cells(arm)%>%
-  tab_stat_cases()%>%
+  tab_cells(arm) %>%
+  tab_stat_cases() %>%
   tab_pivot()
 ```
 
@@ -103,8 +144,8 @@ did_df %>%
 #| label: tbl-did-3
 #| tbl-cap: "Number of participants in each arm: 0 = Iron replete, 1 = Iron deficient"
 did_df %>%
-  tab_cells(fer_def12_base)%>%
-  tab_stat_cases()%>%
+  tab_cells(fer_def12_base) %>%
+  tab_stat_cases() %>%
   tab_pivot()
 ```
 
@@ -123,9 +164,15 @@ This section estimates the change in alpha diversity between the control and int
 #| label: tbl-did-5
 #| tbl-cap: Average outcome value in control and intervention arms at baseline
 did_df %>%
-  tab_cells(`Observed features`, `Chao 1 Index`, `Shannon Diversity Index`, Evenness,`Faiths Phylogenetic Diversity`)%>%
-  tab_rows(arm)%>%
-  tab_stat_mean()%>%
+  tab_cells(
+    `Observed features`,
+    `Chao 1 Index`,
+    `Shannon Diversity Index`,
+    Evenness,
+    `Faiths Phylogenetic Diversity`
+  ) %>%
+  tab_rows(arm) %>%
+  tab_stat_mean() %>%
   tab_pivot()
 
 ```
@@ -135,10 +182,16 @@ did_df %>%
 #| label: tbl-did-6
 #| tbl-cap: Average outcome value in control and intervention arms at baseline stratified by sex
 did_df %>%
-  tab_cells(`Observed features`, `Chao 1 Index`, `Shannon Diversity Index`, Evenness,`Faiths Phylogenetic Diversity`)%>%
+  tab_cells(
+    `Observed features`,
+    `Chao 1 Index`,
+    `Shannon Diversity Index`,
+    Evenness,
+    `Faiths Phylogenetic Diversity`
+  ) %>%
   tab_rows(fer_def12_base) %>% #or fer_def12_base
-  tab_cols(arm)%>%
-  tab_stat_mean()%>%
+  tab_cols(arm) %>%
+  tab_stat_mean() %>%
   tab_pivot()
 ```
 
@@ -148,14 +201,20 @@ did_df %>%
 #| tbl-cap: Model summary investigating the average change between intervention groups at baseline
 
 #Calculate the change in average value between intervention groups at baseline
-did_baseline <- did[did$timepoint == "Baseline",]
+did_baseline <- did[did$timepoint == "Baseline", ]
 
 #first lets try without random effects
 alpha_did_lm <- list(
-  chao_lmm_transformed = lm(chao1 ~ arm * time, data =did_baseline),
-  shannon_lmm_transformed = lm(diversity_shannon^2 ~ arm * time, data =did_baseline),  
-  evenness_lmm_transformed = lm(evenness_pielou^2 ~ arm * time, data =did_baseline),
-  pd_lmm_transformed = lm(log(pd) ~ arm * time, data =did_baseline)
+  chao_lmm_transformed = lm(chao1 ~ arm * time, data = did_baseline),
+  shannon_lmm_transformed = lm(
+    diversity_shannon^2 ~ arm * time,
+    data = did_baseline
+  ),
+  evenness_lmm_transformed = lm(
+    evenness_pielou^2 ~ arm * time,
+    data = did_baseline
+  ),
+  pd_lmm_transformed = lm(log(pd) ~ arm * time, data = did_baseline)
 )
 
 lapply(alpha_did_lm, summary)
@@ -193,10 +252,30 @@ lapply(alpha_did_lm, anova)
 #| tbl-cap: Model summary investigating the average change between intervention groups over time with random effects
 
 alpha_did_lmm <- list(
-  chao_lmm_transformed = lme(chao1 ~ arm * time, random = ~1 | displayid, method ="REML", data = did_baseline),
-  shannon_lmm_transformed = lme(diversity_shannon^2 ~ arm * time, random = ~1 | displayid, method ="REML", data = did_baseline),  
-  evenness_lmm_transformed = lme(evenness_pielou^2 ~ arm * time, random = ~1 | displayid, method ="REML", data = did_baseline),
-  pd_lmm_transformed = lme(log(pd) ~ arm * time, random = ~1 | displayid, method ="REML", data = did_baseline)
+  chao_lmm_transformed = lme(
+    chao1 ~ arm * time,
+    random = ~ 1 | displayid,
+    method = "REML",
+    data = did_baseline
+  ),
+  shannon_lmm_transformed = lme(
+    diversity_shannon^2 ~ arm * time,
+    random = ~ 1 | displayid,
+    method = "REML",
+    data = did_baseline
+  ),
+  evenness_lmm_transformed = lme(
+    evenness_pielou^2 ~ arm * time,
+    random = ~ 1 | displayid,
+    method = "REML",
+    data = did_baseline
+  ),
+  pd_lmm_transformed = lme(
+    log(pd) ~ arm * time,
+    random = ~ 1 | displayid,
+    method = "REML",
+    data = did_baseline
+  )
 )
 
 lapply(alpha_did_lmm, summary)
@@ -234,7 +313,7 @@ lapply(alpha_did_lmm, anova)
 #| tbl-cap: Comparison of simple linear model and model with random effects
 #| results: asis
 
-stargazer::stargazer(alpha_did_lm, alpha_did_lmm, header = FALSE)
+stargazer::stargazer(alpha_did_lm, alpha_did_lmm, header = FALSE, type = "html")
 ```
 
 ::: {.callout-important}
@@ -245,24 +324,34 @@ before proceeding make sure you double check the index number of your interactio
 #| label:  simple model coefs and CIs
 ## extract the interaction coefficient and calculate confidance intervals
 ## this can be added if there are clusters in the data: vcov.=vcovCL(x, cluster=~cluster_variable)
-lapply(alpha_did_lm, function(x){
+lapply(alpha_did_lm, function(x) {
   paste("Interaction coefficient:", stats::coef(x)[5])
 })
-lapply(alpha_did_lm, function(x){
-coefci(x)[5,]
+lapply(alpha_did_lm, function(x) {
+  coefci(x)[5, ]
 })
 
-did_baseline <- cbind(did_baseline, do.call(data.frame, lapply(alpha_did_lm, function(lm_model) {
-  stats::coef(lm_model)[5]
-})))
-colnames(did_baseline) <- str_replace(colnames(did_baseline), "lmm_transformed", "interaction_coef")
+did_baseline <- cbind(
+  did_baseline,
+  do.call(
+    data.frame,
+    lapply(alpha_did_lm, function(lm_model) {
+      stats::coef(lm_model)[5]
+    })
+  )
+)
+colnames(did_baseline) <- str_replace(
+  colnames(did_baseline),
+  "lmm_transformed",
+  "interaction_coef"
+)
 ```
 
 ```{r}
 #| label:  LMM coefs and CIs
 ## extract the interaction coefficient and calculate confidance intervals
 ## this can be added if there are clusters in the data: vcov.=vcovCL(x, cluster=~cluster_variable)
-lapply(alpha_did_lmm, function(x){
+lapply(alpha_did_lmm, function(x) {
   paste("Interaction coefficient:", stats::coef(x)[5])
 })
 
@@ -270,22 +359,32 @@ lapply(alpha_did_lmm, function(x){
 # intervals(x)
 # })
 
-did_baseline <- cbind(did_baseline, do.call(data.frame, lapply(alpha_did_lmm, function(lmm_model) {
-  stats::coef(lmm_model)[5]
-})))
-colnames(did_baseline) <- str_replace(colnames(did_baseline), "lmm_transformed", "interaction_coef")
+did_baseline <- cbind(
+  did_baseline,
+  do.call(
+    data.frame,
+    lapply(alpha_did_lmm, function(lmm_model) {
+      stats::coef(lmm_model)[5]
+    })
+  )
+)
+colnames(did_baseline) <- str_replace(
+  colnames(did_baseline),
+  "lmm_transformed",
+  "interaction_coef"
+)
 ```
 
 ```{r}
 #| eval: true
 #| label: tbl-did-16
 #| tbl-cap: Mean alpha diversity between baseline sample groups
-did_baseline%>%
-  tab_cells(chao1, diversity_shannon, evenness_pielou, pd)%>%
-  tab_cols(timepoint)%>%
-  tab_rows(arm)%>%
-  tab_stat_mean()%>%
-  tab_pivot() %>% 
+did_baseline %>%
+  tab_cells(chao1, diversity_shannon, evenness_pielou, pd) %>%
+  tab_cols(timepoint) %>%
+  tab_rows(arm) %>%
+  tab_stat_mean() %>%
+  tab_pivot() %>%
   tab_sort_desc()
 ```
 
@@ -294,9 +393,14 @@ The above table shows that the baseline mean alpha diversity is very similar bet
 ```{r}
 #| eval: false
 #| label: did simple lm coef summary
-did_baseline%>%
-  tab_cells(chao_interaction_coef,  shannon_interaction_coef, evenness_interaction_coef, pd_interaction_coef)%>%
-  tab_stat_mean()%>%
+did_baseline %>%
+  tab_cells(
+    chao_interaction_coef,
+    shannon_interaction_coef,
+    evenness_interaction_coef,
+    pd_interaction_coef
+  ) %>%
+  tab_stat_mean() %>%
   tab_pivot()
 ```
 
@@ -338,26 +442,32 @@ As we have no pre-intervention data, this is our use case
 did_be <- did
 
 alpha_did_lm_be <- list(
-  chao_lmm_transformed = lm(chao1 ~ arm * time + ageAtBaseline, data =did_be),
-  shannon_lmm_transformed = lm(diversity_shannon ~ arm * time + ageAtBaseline, data =did_be),  
-  evenness_lmm_transformed = lm(evenness_pielou~ arm * time + ageAtBaseline, data =did_be),
-  pd_lmm_transformed = lm(log(pd) ~ arm * time + ageAtBaseline, data =did_be)
+  chao_lmm_transformed = lm(chao1 ~ arm * time + ageAtBaseline, data = did_be),
+  shannon_lmm_transformed = lm(
+    diversity_shannon ~ arm * time + ageAtBaseline,
+    data = did_be
+  ),
+  evenness_lmm_transformed = lm(
+    evenness_pielou ~ arm * time + ageAtBaseline,
+    data = did_be
+  ),
+  pd_lmm_transformed = lm(log(pd) ~ arm * time + ageAtBaseline, data = did_be)
 )
 
 lapply(alpha_did_lm_be, summary)
 
 ## extract the interaction coefficient and calculate confidance intervals
 ## this can be added if there are clusters in the data e.g. by slum level: vcov.=vcovCL(x, cluster=~cluster_variable)
-lapply(alpha_did_lm_be, function(x){
+lapply(alpha_did_lm_be, function(x) {
   paste("Interaction coefficient:", stats::coef(x)[4])
 })
-lapply(alpha_did_lm_be, function(x){
-coefci(x)[4,]
+lapply(alpha_did_lm_be, function(x) {
+  coefci(x)[4, ]
 })
 
 #pvalues for coefficients
-lapply(alpha_did_lm_be, function(x){
-coeftest(x)
+lapply(alpha_did_lm_be, function(x) {
+  coeftest(x)
 })
 ```
 
@@ -365,16 +475,36 @@ coeftest(x)
 #| eval: true
 #| label: did estimate LMM regression BvsE
 alpha_did_lmm_be <- list(
-  chao_lmm_transformed = lme(chao1 ~ arm * time + ageAtBaseline, random = ~1 | displayid, method ="REML", data = did_be),
-  shannon_lmm_transformed = lme(diversity_shannon^2 ~ arm * time + ageAtBaseline, random = ~1 | displayid, method ="REML", data = did_be),  
-  evenness_lmm_transformed = lme(evenness_pielou^2 ~ arm * time + ageAtBaseline, random = ~1 | displayid, method ="REML", data = did_be),
-  pd_lmm_transformed = lme(log(pd) ~ arm * time + ageAtBaseline, random = ~1 | displayid, method ="REML", data = did_be)
+  chao_lmm_transformed = lme(
+    chao1 ~ arm * time + ageAtBaseline,
+    random = ~ 1 | displayid,
+    method = "REML",
+    data = did_be
+  ),
+  shannon_lmm_transformed = lme(
+    diversity_shannon^2 ~ arm * time + ageAtBaseline,
+    random = ~ 1 | displayid,
+    method = "REML",
+    data = did_be
+  ),
+  evenness_lmm_transformed = lme(
+    evenness_pielou^2 ~ arm * time + ageAtBaseline,
+    random = ~ 1 | displayid,
+    method = "REML",
+    data = did_be
+  ),
+  pd_lmm_transformed = lme(
+    log(pd) ~ arm * time + ageAtBaseline,
+    random = ~ 1 | displayid,
+    method = "REML",
+    data = did_be
+  )
 )
 
 lapply(alpha_did_lmm_be, summary)
 #different functions from the `nlme` package need to be used here to be able to handle a model with random effects
 lapply(alpha_did_lmm_be, intervals, which = "fixed")
-lapply(alpha_did_lmm_be,function(x){
+lapply(alpha_did_lmm_be, function(x) {
   fixef(x)[5]
 })
 ```
@@ -413,56 +543,91 @@ $\Delta Y_T = Y_T^{post} - Y_T^{pre}$
 ```{r}
 #| eval: true
 #| label: alpha diversity LMM DiD analysis using estimated marginal means
-emm <- lapply(alpha_did_lmm_be, function(x){
+emm <- lapply(alpha_did_lmm_be, function(x) {
   emmeans(
-          x,
-          ~ arm+time,
-          at=list(
-            time=c(0,1)),
-          type = "response")
+    x,
+    ~ arm + time,
+    at = list(
+      time = c(0, 1)
+    ),
+    type = "response"
+  )
 })
 
 #0.95 CIs
-did_est <- lapply(emm, function(x) { 
-  confint(contrast(x, method = list(c(-1, 1, 1, -1)), adjust = "none", ratios = FALSE)) 
+did_est <- lapply(emm, function(x) {
+  confint(contrast(
+    x,
+    method = list(c(-1, 1, 1, -1)),
+    adjust = "none",
+    ratios = FALSE
+  ))
   #note: this is the same as `contrast(x, adjust = "none", ratios = FALSE, interaction = "consec")` -> I have just specified it mannually because it makes more sense to me that way
 })
 
-#lapply(seq_along(emm), function(x) { 
+#lapply(seq_along(emm), function(x) {
 ## eff_size(emm[[x]], sigma = sigma(alpha_did_lmm_be[[x]]), edf = 79, method = list(c(1, -1, -1, 1)))
 #})
 
 est.df <- bind_rows(lapply(did_est, as.data.frame))
 est.df$contrast <- NULL
-est.df$`Diversity metric` <- c("Chao 1 Index", "Shannon Entropy", "Evenness","Faith's Phylogenetic Diversity")
+est.df$`Diversity metric` <- c(
+  "Chao 1 Index",
+  "Shannon Entropy",
+  "Evenness",
+  "Faith's Phylogenetic Diversity"
+)
 
-names(est.df)[names(est.df) == "estimate"] <- paste0("$\\delta_{DiD}$", footnote_marker_number(1, format = "latex", double_escape = F))
+names(est.df)[names(est.df) == "estimate"] <- paste0(
+  "$\\delta_{DiD}$",
+  footnote_marker_number(1, format = "latex", double_escape = F)
+)
 
 est.df %>%
   select(`Diversity metric`, !c(`Diversity metric`)) %>%
-  kable(escape = FALSE) %>%  
-  footnote(number = c("The difference-in-differences estimator calculated as $\\\\delta_{DiD} = \\\\Delta Y_T - \\\\Delta Y_C$"), footnote_as_chunk = TRUE, escape = FALSE)
+  kable(escape = FALSE) %>%
+  footnote(
+    number = c(
+      "The difference-in-differences estimator calculated as $\\\\delta_{DiD} = \\\\Delta Y_T - \\\\Delta Y_C$"
+    ),
+    footnote_as_chunk = TRUE,
+    escape = FALSE
+  )
 ```
 
 ```{r}
 #| eval: true
 #| label: DiD p-values
 
-did_est <- lapply(emm, function(x) { 
-  contrast(x, method = list(c(-1, 1, 1, -1)), adjust = "none", ratios = FALSE) 
+did_est <- lapply(emm, function(x) {
+  contrast(x, method = list(c(-1, 1, 1, -1)), adjust = "none", ratios = FALSE)
   #note: this is the same as `contrast(x, adjust = "none", ratios = FALSE, interaction = "consec")` -> I have just specified it mannually because it makes more sense to me that way
 })
 
 est.df <- bind_rows(lapply(did_est, as.data.frame))
 est.df$contrast <- NULL
-est.df$`Diversity metric` <- c("Chao 1 Index", "Shannon Entropy", "Evenness","Faith's Phylogenetic Diversity")
+est.df$`Diversity metric` <- c(
+  "Chao 1 Index",
+  "Shannon Entropy",
+  "Evenness",
+  "Faith's Phylogenetic Diversity"
+)
 
-names(est.df)[names(est.df) == "estimate"] <- paste0("$\\delta_{DiD}$", footnote_marker_number(1, format = "latex", double_escape = F))
+names(est.df)[names(est.df) == "estimate"] <- paste0(
+  "$\\delta_{DiD}$",
+  footnote_marker_number(1, format = "latex", double_escape = F)
+)
 
 est.df %>%
   select(`Diversity metric`, !c(`Diversity metric`)) %>%
-  kable(escape = FALSE) %>%  
-  footnote(number = c("The difference-in-differences estimator calculated as $\\\\delta_{DiD} = \\\\Delta Y_T - \\\\Delta Y_C$"), footnote_as_chunk = TRUE, escape = FALSE)
+  kable(escape = FALSE) %>%
+  footnote(
+    number = c(
+      "The difference-in-differences estimator calculated as $\\\\delta_{DiD} = \\\\Delta Y_T - \\\\Delta Y_C$"
+    ),
+    footnote_as_chunk = TRUE,
+    escape = FALSE
+  )
 
 ```
 
@@ -472,25 +637,27 @@ The above code is the same as:
 ```{r}
 #| eval: false
 #| label: tutorial code
-m <- lapply(alpha_did_lmm_be, function(x){
+m <- lapply(alpha_did_lmm_be, function(x) {
   margins::margins(
-      x,
-      at=list(
-        time=c(0,1),
-        arm=c(0,1)), 
-      variables = c("time", "arm"), #the output will have columns time and arm1, these are relative to the reference level time = overall average, and arm = 0
-      level = 0.95
-)})
+    x,
+    at = list(
+      time = c(0, 1),
+      arm = c(0, 1)
+    ),
+    variables = c("time", "arm"), #the output will have columns time and arm1, these are relative to the reference level time = overall average, and arm = 0
+    level = 0.95
+  )
+})
 
-lapply(m, function(x){
-  x %>%  
-    tab_cells(fitted)%>%
-    tab_rows(arm)%>%
-    tab_cols(time)%>%
-    tab_stat_mean()%>%
-    tab_pivot() %>% 
-    tab_sort_desc()%>%
-    mutate(difference = `time|1`-`time|0`)%>%
-    mutate(DiD = `difference`[1]-`difference`[2])
+lapply(m, function(x) {
+  x %>%
+    tab_cells(fitted) %>%
+    tab_rows(arm) %>%
+    tab_cols(time) %>%
+    tab_stat_mean() %>%
+    tab_pivot() %>%
+    tab_sort_desc() %>%
+    mutate(difference = `time|1` - `time|0`) %>%
+    mutate(DiD = `difference`[1] - `difference`[2])
 })
 ```
