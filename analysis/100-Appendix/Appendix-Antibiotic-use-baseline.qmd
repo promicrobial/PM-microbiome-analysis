@@ -1,0 +1,608 @@
+## Antibiotic use at Baseline
+
+```{r}
+#| echo: false
+#| eval: true
+#| label: setup
+
+# This initial code block loads custom utility functions and environment variables
+# These are stored in separate files to keep the main analysis clean and organized
+suppressWarnings(suppressMessages({
+  source(normalizePath("utils/r-utils.r"))
+  source(normalizePath("_environment.required"))
+
+  baseline_metadata <- readRDS(normalizePath(
+    "data/metadata/baseline-metadata.csv"
+  ))
+
+  # dir.create(
+  #   file.path(RESULTS, "baseline-kegg"),
+  #   showWarnings = FALSE,
+  #   recursive = TRUE
+  # )
+}))
+```
+
+**Antibiotic variables**
+
+| Variable     | Description                                                        |
+|:-------------|:-------------------------------------------------------------------|
+| abx          | Child: frequency of Abx use                                        |
+| abx_yn       | Mother knows child's antibiotics history or has MCH card available |
+| abxage       | Child: Age when Abx taken                                          |
+| abxc02       | Child: Abx use, current or within past 1 month                     |
+| abxcy02      | If AbxC02=Yes: Which Abx                                           |
+| abxkind1     | Child: Abx form = injection                                        |
+| abxkind2     | Child: Abx form = Tablet/pill                                      |
+| abxkind3     | Child: Abx form = liquid                                           |
+| abxm02       | Mother: Abx during pregnancy                                       |
+| abxmb02      | Mother: Abx during breastfeeding                                   |
+| abxmbfy02    | If AbxM02=Yes: Which Abx                                           |
+| abxmdel02    | Mother: Abx since delivery                                         |
+| abxmdely02   | If AbxMdel02=Yes: Which Abx                                        |
+| abxmweeks02  | Mother: Abx in past 4 wks                                          |
+| abxmweeksy02 | If AbxMweeks02=Yes: Which Abx                                      |
+| abxmy02      | If AbxMB02=Yes: Which Abx                                          |
+| abxtype1     | Child: Abx name = penicillin (including amoxicillin)               |
+| abxtype2     | Child: Abx name = cephalosporins                                   |
+| abxtype3     | Child: Abx name = macrolides                                       |
+| abxtype4     | Child: Abx name = penicillin                                       |
+| abxtype5     | Child: Abx name = amoxicillin                                      |
+| abxwhy       | Child: Abx use reason (illness)                                    |
+
+### Types of antibiotics used among baseline cohort
+
+```{r}
+#| eval: true
+#| label: antibiotic use
+baseline_metadata %>%
+  filter(timepoint == "Baseline") %>%
+  select(
+    `Any past antibiotic use` = abx,
+    `Antibiotic history known` = abx_yn,
+    `Age when antibiotics taken` = abxage,
+    `penicillin (including amoxicillin)` = abxtype1,
+    cephalosporins = abxtype2,
+    macrolides = abxtype3,
+    penicillin = abxtype4,
+    amoxicillin = abxtype5,
+    reason = abxwhy
+  ) %>%
+  mutate_at(vars(everything()), type.convert, as.is = T) %>%
+  mutate(
+    across(
+      !c(reason),
+      ~ case_when(
+        . == 1 ~ "Yes",
+        . == 0 ~ "No",
+        . == 8 ~ "Don't know",
+        . == 9 ~ "Not applicable",
+        TRUE ~ "Unknown"
+      )
+    )
+  ) %>%
+  tbl_summary(
+    missing = "ifany",
+    statistic = list(
+      all_continuous() ~ "{median} ({IQR}; {min}-{max})",
+      all_categorical() ~ "{n} / {N} ({p}%)"
+    )
+  ) %>%
+  as_kable_extra(format = "markdown", escape = TRUE)
+```
+
+### Differences in Alpha diveristy among Children with known Antibiotic History
+
+A total of 25 mothers were able to provide information on their child's past antibiotic use:
+Reported antibiotic use = 15
+Reported no antibiotic use = 10
+
+```{r}
+#| eval: true
+#| label: tbl-
+#| tbl-cap: alpha diveristy between antibiotic reports
+
+kable(
+  tmp <- baseline_metadata %>%
+    select(
+      abx,
+      abx_yn,
+      observed,
+      chao1,
+      diversity_shannon,
+      evenness_pielou,
+      pd
+    ) %>%
+    mutate_at(vars(everything()), str_trim) %>%
+    type.convert(., as.is = TRUE) %>%
+    mutate(
+      abx = case_when(
+        abx == 1 ~ "Never",
+        abx == 2 ~ "1-2 times",
+        abx == 3 ~ "3-4 times",
+        abx == 4 ~ "> 4 times",
+        TRUE ~ "Unknown"
+      )
+    ) %>%
+    filter(abx != "Unknown"),
+  format = "markdown"
+)
+```
+
+```{r}
+#| eval: true
+#| label: alpha diveristy between antibiotic reports
+
+tmp %>%
+  select(!abx_yn) %>%
+  gt_summary(by = "abx")
+
+```
+
+```{r}
+#| eval: true
+#| label: alpha diveristy between antibiotic reports
+
+stats <- tmp %>%
+  pivot_longer(cols = !c(abx, abx_yn), names_to = "diversity_metric")
+
+#print summary stats
+kable(
+  stats %>%
+    group_by(abx, diversity_metric) %>%
+    get_summary_stats(value, type = "common"),
+  format = "markdown"
+)
+
+kable(
+  stats %>%
+    group_by(diversity_metric) %>%
+    pairwise_wilcox_test(
+      value ~ abx,
+      paired = FALSE,
+      p.adjust.method = "BH"
+    ) %>%
+    select(!c(.y., p.adj.signif)),
+  format = "markdown"
+)
+```
+
+### Antibiotic use among children with reported illness e.g. gastrointestinal symptoms
+
+| Variable     | Description                                                        | Values                                                                                                                                                         |
+|---------------------------|--------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| abx          | Child: frequency of Abx use                                        | 1 Never; 2 1-2 times; 3 3-4 times; 4 \> 4 times                                                                                                                |
+| abx_yn       | Mother knows child's antibiotics history or has MCH card available | 0=No; 1=Yes                                                                                                                                                    |
+| diag         | Diagnosis                                                          | 1 Tuberculosis; 2 Malaria, Dengue Fever, HIV, or Tuberculosis; 3 Pneumonia; 4 Worms;  5 Tonsillitis;  6 Conjunctivitis;  7 Asthma;  8 Other;  9 Not Applicable |
+| diagother    | Diagnosis if other                                                 | free text                                                                                                                                                      |
+| gi_yn        | Diarrhea other gastrointestinal symptoms, today or in the past     | 0=No; 1=Yes                                                                                                                                                    |
+| fever_yn     | Fever today or in the past                                         | 0=No; 1=Yes                                                                                                                                                    |
+| resp_yn      | Respiratory symptoms, ever                                         | 0=No; 1=Yes                                                                                                                                                    |
+| freqnoserun  | Frequency of runny nose                                            | 1 Today  2 Last 7 days 3 Last 4 weeks  4 None  8 Don't know                                                                                                    |
+| freqtrblbrth | Frequency of trouble breathing                                     | 1 Today  2 Last 7 days  3 Last 4 weeks  4 None  8 Don't know                                                                                                   |
+| freqvom      | Frequency of vomiting due to illness                               | 1 Today  2 Last 7 days  3 Last 4 weeks  4 None  8 Don't know                                                                                                   |
+| health6m_bc  | Health status in last 6 months                                     | 1=healthy; 2=little problems with fever andor coldcough; 3=child always has some problem or other                                                              |
+| mucuscough   | Frequency of coughing up mucus                                     | 1 Today  2 Last 7 days  3 Last 4 weeks  4 None  8 Don't know                                                                                                   |
+| rash_bc      | Does child have a rash?                                            | 0=No; 1=Yes                                                                                                                                                    |
+| respsigns1   | Respriatory signs: normal                                          | 0=No; 1=Yes                                                                                                                                                    |
+| respsigns2   | Respriatory signs: cyanosis                                        | 0=No; 1=Yes                                                                                                                                                    |
+| respsigns3   | Respriatory signs: Lower chest wall indrawing                      | 0=No; 1=Yes                                                                                                                                                    |
+| respsigns4   | Respriatory signs: Nasal flaring                                   | 0=No; 1=Yes                                                                                                                                                    |
+| respsigns5   | Respriatory signs: Rapid breathing                                 | 0=No; 1=Yes                                                                                                                                                    |
+| respsigns6   | Respriatory signs: Pale skin                                       | 0=No; 1=Yes                                                                                                                                                    |
+| respsigns7   | Respriatory signs: Cyanotic skin                                   | 0=No; 1=Yes                                                                                                                                                    |
+
+```{r} 
+#| eval: true
+#| label: children reported to be sick in last 4 weeks
+missing <- metadata %>%
+  filter(any_other_relevant_information == "1Baseline") %>%
+  select(
+    freq3diarr,
+    freqcough,
+    freqdaysdiarr,
+    freqdiarrblood,
+    freqdiarrmucus,
+    freqfever,
+    freqfeverrigors,
+    freqfeversweat,
+    freqnoserun,
+    freqtrblbrth,
+    freqvom,
+    mucuscough,
+    rash_bc
+  ) %>%
+  mutate_at(vars(everything()), str_trim) %>%
+  mutate_at(vars(everything()), type.convert, as.is = T) %>%
+  summarise_all(~ sum(is.na(.)) / 168 * 100) %>%
+  select(
+    `Cough` = freqcough,
+    `Diarrhea (> x3/day)` = freq3diarr,
+    `Does the child have a rash` = rash_bc,
+    `Fever` = freqfever,
+    `Any blood-stained stools` = freqdiarrblood,
+    `Any loose/watery stools` = freqdaysdiarr,
+    `Any mucus cough` = mucuscough,
+    `Any mucus- or pus-filled stools` = freqdiarrmucus,
+    `Any rigors with fever` = freqfeverrigors,
+    `Any runny nose` = freqnoserun,
+    `Any sweating with fever` = freqfeversweat,
+    `Any trouble breathing` = freqtrblbrth,
+    `Any vomiting due to illness` = freqvom
+  ) %>%
+  t()
+
+missing %>%
+  kbl(format = "markdown", col.names = c("Symptom$^a$", "Unreported(%)"))
+footnote(alphabet = "today or within past 4 weeks")
+
+paste0(
+  "Median percent missingness (IQR; min-max) = ",
+  round(median(missing), 2),
+  "% (",
+  round(calculate_iqr(missing), 2),
+  "; ",
+  round(min(missing), 2),
+  "-",
+  round(max(missing), 2),
+  ")."
+)
+
+
+tmp <- metadata %>%
+  filter(any_other_relevant_information == "1Baseline") %>%
+  select(
+    abx,
+    freq3diarr,
+    freqcough,
+    freqdaysdiarr,
+    freqdiarrblood,
+    freqdiarrmucus,
+    freqfever,
+    freqfeverrigors,
+    freqfeversweat,
+    freqnoserun,
+    freqtrblbrth,
+    freqvom,
+    gi_yn,
+    mucuscough,
+    rash_bc
+  ) %>%
+  mutate_at(vars(everything()), str_trim) %>%
+  mutate_at(vars(everything()), type.convert, as.is = T) %>%
+  mutate(
+    abx = case_when(
+      abx == 1 ~ "Never",
+      abx == 2 ~ "1-2 times",
+      abx == 3 ~ "3-4 times",
+      abx == 4 ~ "> 4 times",
+      TRUE ~ "Unknown"
+    )
+  )
+
+tmp %>%
+  select(abx, gi_yn) %>%
+  mutate(
+    gi_yn = case_when(
+      gi_yn == 1 ~ "Yes",
+      gi_yn == 0 ~ "No",
+      TRUE ~ "Unknown"
+    )
+  ) %>%
+  group_by(abx, gi_yn) %>%
+  summarise(n = n()) %>%
+  ggplot(aes(x = abx, y = n)) +
+  geom_col(aes(fill = gi_yn))
+```
+
+```{r}
+#| eval: true
+#| label: Illnesses and Abx
+tmp <- metadata %>%
+  filter(any_other_relevant_information == "1Baseline") %>%
+  select(
+    abx,
+    abx_yn,
+    diag,
+    diagother,
+    gi_yn,
+    fever_yn,
+    resp_yn,
+    freqnoserun,
+    freqtrblbrth,
+    freqvom,
+    health6m_bc,
+    mucuscough,
+    rash_bc,
+    respsigns1,
+    respsigns2,
+    respsigns3,
+    respsigns4,
+    respsigns5,
+    respsigns6,
+    respsigns7,
+    freq3diarr,
+    freqfever,
+    freqcough
+  ) %>%
+  mutate_at(vars(everything()), str_trim) %>%
+  mutate_at(vars(everything()), type.convert, as.is = T) %>%
+  mutate(
+    across(
+      c(
+        abx_yn,
+        gi_yn,
+        fever_yn,
+        resp_yn,
+        rash_bc,
+        respsigns1,
+        respsigns2,
+        respsigns3,
+        respsigns4,
+        respsigns5,
+        respsigns6,
+        respsigns7
+      ),
+      ~ case_when(
+        . == 1 ~ "Yes",
+        . == 0 ~ "No",
+        TRUE ~ "Unknown"
+      )
+    )
+  ) %>%
+  mutate(
+    across(
+      c(
+        freqnoserun,
+        freqtrblbrth,
+        freqvom,
+        mucuscough,
+        freq3diarr,
+        freqfever,
+        freqcough
+      ),
+      ~ case_when(
+        . == 1 ~ "Today",
+        . == 2 ~ "Last 7 days",
+        . == 3 ~ "Last 4 weeks",
+        . == 4 ~ "None",
+        . == 8 ~ "Don't know",
+        TRUE ~ "Unknown"
+      )
+    )
+  ) %>%
+  mutate(
+    abx = case_when(
+      abx == 1 ~ "Never",
+      abx == 2 ~ "1-2 times",
+      abx == 3 ~ "3-4 times",
+      abx == 4 ~ "> 4 times",
+      TRUE ~ "Unknown"
+    ),
+    diag = case_when(
+      diag == 1 ~ "Tuberculosis",
+      diag == 2 ~ "Malaria, Dengue Fever, HIV, or Tuberculosis",
+      diag == 3 ~ "Pneumonia",
+      diag == 4 ~ "Worms",
+      diag == 5 ~ "Tonsillitis",
+      diag == 6 ~ "Conjunctivitis",
+      diag == 7 ~ "Asthma",
+      diag == 8 ~ "Other",
+      diag == 9 ~ "Not Applicable",
+      TRUE ~ diagother
+    ),
+    health6m_bc = case_when(
+      health6m_bc == 1 ~ "healthy",
+      health6m_bc == 2 ~ "little problems with fever and/or cold/cough",
+      health6m_bc == 3 ~ "child always has some problem or other",
+      TRUE ~ "Unknown"
+    )
+  ) %>%
+  select(
+    `Any past antibiotic use` = abx,
+    `Antibiotic history known` = abx_yn,
+    `Health in the past 6 months` = health6m_bc,
+    `Any current diagnosis of disease` = diag,
+    `Any gastrointestinal symptoms, now or in past` = gi_yn,
+    `Diarrhea today or within past 4 weeks ` = freq3diarr,
+    `Frequency of vomiting` = freqvom,
+    `Any respiratory symptoms, now or in past` = resp_yn,
+    `Frequency of runny nose` = freqnoserun,
+    `Frequency of mucus cough` = mucuscough,
+    `Cough today or within past 4 weeks` = freqcough,
+    `Frequency of trouble breathing` = freqtrblbrth,
+    `Current respiratory signs: normal` = respsigns1, # 100% have normal signs
+    `Does the child have a rash` = rash_bc,
+    `Any fever, now or in past` = fever_yn,
+    `Fever today or within past 4 weeks ` = freqfever,
+    # `Respiratory signs: cyanosis` = respsigns2,
+    # `Respiratory signs: Lower chest wall indrawing` = respsigns3,
+    # `Respiratory signs: Nasal flaring` = respsigns4,
+    # `Respiratory signs: Rapid breathing` = respsigns5,
+    # `Respiratory signs: Pale skin` = respsigns6,
+    # `Respiratory signs: Cyanotic skin` = respsigns7,
+  )
+```
+
+```{r}
+#| eval: true
+#| label: those with reported illness
+#| tab-cap: Reported antibiotic use among infants with reported illness
+#| results: asis
+
+tmp %>%
+  filter(`Any past antibiotic use` != "Unknown") %>%
+  kable(format = "markdown")
+```
+
+### Generate summary table of antibiotic and illness reports 
+
+```{r}
+#| eval: true
+#| label: summary table
+#| tab-cap: summary table of antibiotic and illness reports and global chisq association test
+
+#generate the summary table
+tmp %>%
+  tbl_summary(
+    by = `Any past antibiotic use`,
+    missing = "ifany",
+    statistic = list(
+      all_continuous() ~ "{median} ({IQR}; {min}-{max})", # stats and format for continuous mns
+      all_categorical() ~ "{n} / {N} ({p}%)"
+    ), # stats and format for categorical columns
+    type = list(
+      all_continuous() ~ "continuous2",
+      all_categorical() ~ "categorical"
+    )
+  ) %>%
+  modify_header(label = "**Antibiotic Frequency**") %>%
+  add_n() %>%
+  add_p(
+    pvalue_fun = function(x) style_pvalue(x, digits = 3),
+    test = all_categorical() ~ "chisq.test"
+  ) %>%
+  as_kable_extra(format = "markdown", escape = TRUE)
+```
+
+### Global $\chi^2$ test of association between categorical variables
+
+The critical value for the $\chi^2$ test statistic is based on the degrees of freedom and the chosen $\alpha$ level. This can be Bonferroni (or other) adjusted $\alpha$ value if there are several comparisons being made. 
+
+If the test statistic is lower than the critical value, we **fail to reject the null hypothesis** (we do not have sufficient evidence to state that there is an association between variables). 
+
+If the test statistic is greater than the critical value, we **reject the null hypothesis** (there is sufficient evidence to suggest an association between variables). 
+
+To understand which levels in the two categorical variables being compared are contributing to the significant difference between variables (as suggested by the global $\chi^2$ test), we can look at the test residuals ($\varepsilon$), specifically the standarised ones. These (either raw or standardised)can be used to determine the magnitude of differences between variable levels. We can determine if a level is significantly different from the expected frequency value by comparing the absolute standardised residual ($\lvert \varepsilon \rvert$) to the normal distribution critical value for $\alpha = 0.05\Rightarrow 1.96$. 
+
+In the case where there are numerous comparisons being made, an adjusted critical value can be used. Here, the Bonferronni method is used to calculate the new $\alpha$, given the total number of category level comparsions being made (total number of cells in the contingency table). Use this new $\alpha$ value to determine the adjusted critical value for a significant deviation from the expected value 
+
+::: {.callout-tip}
+
+Residuals represent the difference between the observed and expected value
+
+$$
+\varepsilon = y_i - \hat{y}_i
+$$
+
+:::
+
+```{r}
+#| eval: true
+#| label: chisq association test
+
+#any correlations between abx use and illness?
+#**missing data is still data**
+
+lapply(1:ncol(tmp), function(i) {
+  tbl <- table(tmp[, 1], tmp[, i])
+  a <- 0.05 / prod(dim(tbl))
+  chi <- rstatix::chisq_test(tbl)
+  Xcrit <- qchisq(p = a, df = chi$df, lower.tail = FALSE) # If TRUE, the probability to the left of p in the F distribution is returned. If FALSE, the probability to the right is returned. Default is TRUE.
+  V <- rstatix::cramer_v(tbl)
+
+  if (abs(chi$statistic) < Xcrit) {
+    text <- c(
+      paste0(
+        "DF = ",
+        chi$df,
+        "; adjusted $\\\\alpha$ = ",
+        round(a, 3),
+        "; critical value = ",
+        round(Xcrit, 3)
+      ),
+      paste0(
+        "Since ",
+        round(chi$statistic, 3),
+        " > ",
+        round(Xcrit, 3),
+        " $\\\\Rightarrow \\\\textbf{fail reject the null hypothesis}$"
+      ),
+      paste0(
+        "(insufficient evidence to support an association between variables)."
+      ),
+      paste0(" "),
+      paste0("$\\\\textbf{No further investigation required}$")
+    )
+    resid_crit <- 100
+  } else {
+    chi_resid <- rstatix::std_residuals(chi)
+    resid_crit <- qnorm(p = a, lower.tail = FALSE)
+    text <- c(
+      paste0(
+        "DF = ",
+        chi$df,
+        "; Adjusted $\\\\alpha$ = ",
+        round(a, 3),
+        "; Critical Value = ",
+        round(Xcrit, 3)
+      ),
+      paste0(
+        "Since ",
+        round(chi$statistic, 3),
+        " > ",
+        round(Xcrit, 3),
+        " $\\\\Rightarrow \\\\textbf{reject the null hypothesis}$"
+      ),
+      paste0(
+        "(there is sufficient evidence to suggest an association between variables)."
+      ),
+      paste0(" "),
+      paste0(
+        "$\\\\textbf{Compare the standardised residuals to determine which levels differ }$"
+      ),
+      paste0(
+        "Adjusted $\\\\alpha$ = ",
+        round(a, 3),
+        "; Critical Value = ",
+        round(Xcrit, 3)
+      ),
+      paste0(" Values in red represent significantly different residuals")
+    )
+  }
+
+  df <- as.data.frame(rstatix::std_residuals(chi))
+  colnames(df) <- c("Antibiotc Use", "Var2", "Freq")
+  df %>%
+    mutate(Freq = round(Freq, 3)) %>%
+    mutate(
+      Freq = cell_spec(
+        Freq,
+        color = ifelse(abs(Freq) > resid_crit, "red", "black"),
+        escape = FALSE
+      )
+    ) %>%
+    pivot_wider(names_from = "Var2", values_from = "Freq") %>%
+    kbl(
+      escape = FALSE,
+      caption = paste(
+        "Antibiotic useage Chi-squared association with:",
+        colnames(tmp)[i],
+        "(standardised residuals)"
+      ),
+      digits = 3,
+      booktabs = TRUE,
+      table.attr = "style='width:80%;'",
+      align = "c",
+      centering = FALSE
+    ) %>%
+    footnote(
+      number = c(
+        paste("Cramer's V:", round(V, 3)),
+        paste(
+          "Chi squared test-statistic:",
+          round(chi$statistic, 3),
+          " (p = ",
+          round(chi$p, 3),
+          ")"
+        )
+      ),
+      general = text,
+      footnote_as_chunk = FALSE,
+      escape = FALSE,
+      threeparttable = FALSE,
+      general_title = "",
+      footnote_order = c("number", "alphabet", "symbol", "general")
+    )
+})
+```
