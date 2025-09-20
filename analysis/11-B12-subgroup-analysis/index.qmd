@@ -1,6 +1,0 @@
-## Subgroup analysis: Vitamin B12 Status
-
-Vitmin B12 status is defiend as fol;lows:
-
--   Deficiency: \<148 pmol/L (200 pg/mL)
--   Insufficiency: \<221 pmol/L (300 pg/mL)
