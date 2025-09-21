@@ -7,7 +7,7 @@
 
 # This initial code block loads custom utility functions and environment variables
 # These are stored in separate files to keep the main analysis clean and organized
-suppressMessages({
+suppressWarnings(suppressMessages({
   source("utils/r-utils.r")
   source("scripts/OGeeU.r")
   source("scripts/zeroGUS.r")
@@ -29,7 +29,7 @@ suppressMessages({
     showWarnings = FALSE,
     recursive = TRUE
   )
-})
+}))
 ```
 
 ## Prepare Outcome and Predictor Variables
@@ -60,7 +60,7 @@ rownames(outcome) <- str_replace(
 
 predictors <- prepare_predictors(data$meta_data)
 predictors <- predictors %>%
-  select(subject, trt, age_B = agedays_rounded) %>%
+  select(subject, trt, age_B) %>%
   rownames_to_column(var = "sample") %>%
   mutate(
     baseline_sample = str_replace(sample, "_G_E|_B_E|_E|_G_B|_B_B", "_B"),
@@ -204,7 +204,8 @@ list <- list(
 ```{r}
 #| eval: true
 #| label: diagnose-mods
-#| include: false
+#| message: false
+#| warning: false
 
 poor_fits <- lapply(1:length(list), function(x) {
   d <- diagnoseZI(list[[x]]$all_models)
@@ -362,7 +363,7 @@ nb1_models <- keep_at(
 
 ```
 
-Are there any models that fail diagnostics: ` any(nb1_unfit$pass == FALSE)`
+Are there any models that fail diagnostics: `r any(nb1_unfit$pass == FALSE)`
 
 ```{r}
 #| eval: true
@@ -496,7 +497,7 @@ gau_models <- keep_at(
 
 ```
 
-Are there any models that fail diagnostics: ` any(gau_unfit$pass == FALSE)`
+Are there any models that fail diagnostics: `r any(gau_unfit$pass == FALSE)`
 
 ```{r}
 #| eval: true
@@ -631,7 +632,7 @@ write.csv(
 )
 ```
 
-Of the ` ncol(outcome)` OGUs that passed filtering (` ncol(outcome)/ncol(data$ogu_data)`), ` nrow(summary)` were sucessfully fit to a zero-inflated model (` nrow(summary)/ncol(outcome)*100`%)
+Of the `r ncol(outcome)` OGUs that passed filtering (`r ncol(outcome)/ncol(data$ogu_data)`), `r nrow(summary)` were sucessfully fit to a zero-inflated model (`r nrow(summary)/ncol(outcome)*100`%)
 
 ```{r}
 #| eval: true
@@ -1176,7 +1177,7 @@ emmEff_zi <- lapply(1:length(slopes_zi), function(i) {
     edf = df.residual(fits[[i]]),
     method = "identity"
   )
-})
+}))
 
 names(emmEff_zi) <- names(slopes_zi)
 
