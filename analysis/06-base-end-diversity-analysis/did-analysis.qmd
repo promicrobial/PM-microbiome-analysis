@@ -11,10 +11,12 @@ source("utils/r-utils.r")
 source("_environment.required")
 bac_base_end_meta <- readRDS("data/metadata/base-end-metadata.rds")
 
-suppressPackageStartupMessages(library(emmeans))
-suppressPackageStartupMessages(library(nlme))
-suppressPackageStartupMessages(library(expss))
-suppressPackageStartupMessages(library(lmtest))
+suppressPackageStartupMessages({
+  library(emmeans)
+  library(nlme)
+  library(expss)
+  library(lmtest)
+})
 ```
 
 If necessary, convert timepoints and intervention groups into dummy variables
@@ -54,8 +56,9 @@ alpha_did <- list(
 #| eval: true
 #| label: tbl-lm-sum
 #| tbl-cap: Summary of simple alpha diveristy linear models with formula y ~ arm * timepoint
+#| results: asis
 
-stargazer::stargazer(alpha_did, type = "html")
+stargazer::stargazer(alpha_did, header = FALSE, type = "html")
 ```
 
 The interaction coefficient is the differences-in-differences estimator. The effect is significant at 10% with the treatment having a negative effect. 
