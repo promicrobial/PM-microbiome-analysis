@@ -363,8 +363,6 @@ nb1_models <- keep_at(
 
 ```
 
-Are there any models that fail diagnostics: `r any(nb1_unfit$pass == FALSE)`
-
 ```{r}
 #| eval: true
 #| label: nb1-summary
@@ -381,7 +379,10 @@ if (length(nb1_models) > 0) {
     optimizer = "nlminb"
   )
   nb1_ogu_models <- nb1_results$adj_results %>% filter(outcome_id %in% names(nb1_models))
+}
 ```
+
+Are there any models that fail diagnostics: `r any(nb1_unfit$pass == FALSE)`
 
 ```{r}
 #| eval: true
@@ -408,7 +409,6 @@ nb2_models <- keep_at(
 
 ```
 
-Are there any models that fail diagnostics: `r any(nb2_unfit$pass == FALSE)`
 
 ```{r}
 #| eval: true
@@ -428,6 +428,8 @@ if (length(nb2_models) > 0) {
 nb2_ogu_models <- nb2_results$adj_results %>% filter(outcome_id %in% names(nb2_models))
 }
 ```
+
+Are there any models that fail diagnostics: `r any(nb2_unfit$pass == FALSE)`
 
 ```{r}
 #| eval: true
@@ -453,7 +455,6 @@ poi_models <- keep_at(
 
 ```
 
-Are there any models that fail diagnostics: `r any(poi_unfit$pass == FALSE)`
 
 ```{r}
 #| eval: true
@@ -473,6 +474,8 @@ if (length(poi_models) > 0) {
 poi_ogu_models <- poi_results$adj_results %>% filter(outcome_id %in% names(poi_models))
 }
 ```
+
+Are there any models that fail diagnostics: `r any(poi_unfit$pass == FALSE)`
 
 ```{r}
 #| eval: true
@@ -497,7 +500,6 @@ gau_models <- keep_at(
 
 ```
 
-Are there any models that fail diagnostics: `r any(gau_unfit$pass == FALSE)`
 
 ```{r}
 #| eval: true
@@ -517,6 +519,8 @@ if (length(gau_models) > 0) {
 gau_ogu_models <- gau_results$adj_results %>% filter(outcome_id %in% names(gau_models))
 }
 ```
+
+Are there any models that fail diagnostics: `r any(gau_unfit$pass == FALSE)`
 
 ```{r}
 #| eval: true
