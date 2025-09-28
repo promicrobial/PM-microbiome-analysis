@@ -1,0 +1,31 @@
+# Introduction
+
+Malnourished children living in urban slums are characterized by a high burden of inflammation (elevated CRP) and infection (e.g. elevated gastrointestinal infections).
+
+## Computation environment
+
+The bash engine used to execute bash code is: `r Sys.which("bash")`
+
+The R package library is: `r .libPaths()`
+
+### Session Info
+
+```{r}
+#| eval: true
+#| echo: false
+sessionInfo()
+
+# If the sessioninfo package is available, 
+# it provides output that is easier to read,
+# and can write its results to a file
+# sessioninfo:::session_info(to_file = "quarto-session-info-output.txt")
+```
+
+### System environment
+
+```{r}
+#| eval: true
+#| echo: false
+
+knitr::kable(Sys.getenv(), col.names = c("Environment Variable", "Value"), format = "latex")
+```
