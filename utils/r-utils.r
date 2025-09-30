@@ -4536,25 +4536,6 @@ plot_limmavoom = function(tt, physeq, alpha = 0.1) {
 #  #start Functions                                                                #
 ##############################################################################
 
-#for scaling numeric variables on a 0 to 1 scale
-scale_values <- function(x) {
-  (x - min(x)) / (max(x) - min(x))
-}
-
-#backtransforms values transformed by scale_values function
-backtransform_scaled_values <- function(scaled_value, original_data) {
-  original_range <- max(original_data) - min(original_data)
-  backtransformed_value <- scaled_value * original_range + min(original_data)
-  return(backtransformed_value)
-}
-
-#for when the value is not present in the data and you want its scaled form
-get_scaled_value <- function(value, data) {
-  range <- max(data) - min(data)
-  scaled_value <- (value - min(data))/range
-  return(scaled_value)
-}
-
 #' Calculate Summary Statistics for Numeric Data
 #'
 #' @description Calculates summary statistics (mean, standard deviation, standard error,
