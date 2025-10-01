@@ -1,4 +1,4 @@
-# Investigating differences in OGU abundances across Baseline samples using Zero-inflated Regression Models
+# Investigating differences in OGU abundances across Baseline samples due to Age using Zero-inflated Regression Models
 
 ```{r setup}
 #| echo: false
@@ -80,7 +80,7 @@ The following distribution families were used to fit a zero-inflated model:
 #| eval: false
 #| label: fit-genZI
 #| cache: true
-nb2_baseArm <- genZI(
+nb2_baseAge <- genZI(
   outcome,
   predictors,
   formula = "age_B",
@@ -88,7 +88,7 @@ nb2_baseArm <- genZI(
   family = "nbinom2"
 )
 
-nb1_baseArm <- genZI(
+nb1_baseAge <- genZI(
   outcome,
   predictors,
   formula = "age_B",
@@ -96,7 +96,7 @@ nb1_baseArm <- genZI(
   family = "nbinom1"
 )
 
-poi_baseArm <- genZI(
+poi_baseAge <- genZI(
   outcome,
   predictors,
   formula = "age_B",
@@ -104,7 +104,7 @@ poi_baseArm <- genZI(
   family = "poisson"
 )
 
-gau_baseArm <- genZI(
+gau_baseAge <- genZI(
   outcome,
   predictors,
   formula = "age_B",
@@ -112,7 +112,7 @@ gau_baseArm <- genZI(
   family = "gaussian"
 )
 
-lognorm_baseArm <- genZI(
+lognorm_baseAge <- genZI(
   outcome,
   predictors,
   formula = "age_B",
@@ -125,28 +125,28 @@ lognorm_baseArm <- genZI(
 #| eval: false
 #| echo: false
 saveRDS(
-  nb2_baseArm,
-  file.path(filepath, "baseArm-genZI-OGU-nb2_results.rds")
+  nb2_baseAge,
+  file.path(filepath, "baseAge-genZI-OGU-nb2_results.rds")
 )
 
 saveRDS(
-  nb1_baseArm,
-  file.path(filepath, "baseArm-genZI-OGU-nb1_results.rds")
+  nb1_baseAge,
+  file.path(filepath, "baseAge-genZI-OGU-nb1_results.rds")
 )
 
 saveRDS(
-  poi_baseArm,
-  file.path(filepath, "baseArm-genZI-OGU-poi_results.rds")
+  poi_baseAge,
+  file.path(filepath, "baseAge-genZI-OGU-poi_results.rds")
 )
 
 saveRDS(
-  gau_baseArm,
-  file.path(filepath, "baseArm-genZI-OGU-gau_results.rds")
+  gau_baseAge,
+  file.path(filepath, "baseAge-genZI-OGU-gau_results.rds")
 )
 
 saveRDS(
-  lognorm_baseArm,
-  file.path(filepath, "baseArm-genZI-OGU-lognorm_results.rds")
+  lognorm_baseAge,
+  file.path(filepath, "baseAge-genZI-OGU-lognorm_results.rds")
 )
 ```
 
@@ -154,29 +154,29 @@ saveRDS(
 #| eval: true
 #| echo: false
 #| cache: true
-nb2_baseArm <- readRDS(file.path(
+nb2_baseAge <- readRDS(file.path(
   filepath,
-  "baseArm-genZI-OGU-nb2_results.rds"
+  "baseAge-genZI-OGU-nb2_results.rds"
 ))
 
-nb1_baseArm <- readRDS(file.path(
+nb1_baseAge <- readRDS(file.path(
   filepath,
-  "baseArm-genZI-OGU-nb1_results.rds"
+  "baseAge-genZI-OGU-nb1_results.rds"
 ))
 
-poi_baseArm <- readRDS(file.path(
+poi_baseAge <- readRDS(file.path(
   filepath,
-  "baseArm-genZI-OGU-poi_results.rds"
+  "baseAge-genZI-OGU-poi_results.rds"
 ))
 
-gau_baseArm <- readRDS(file.path(
+gau_baseAge <- readRDS(file.path(
   filepath,
-  "baseArm-genZI-OGU-gau_results.rds"
+  "baseAge-genZI-OGU-gau_results.rds"
 ))
 
-lognorm_baseArm <- readRDS(file.path(
+lognorm_baseAge <- readRDS(file.path(
   filepath,
-  "baseArm-genZI-OGU-lognorm_results.rds"
+  "baseAge-genZI-OGU-lognorm_results.rds"
 ))
 ```
 
@@ -187,11 +187,11 @@ lognorm_baseArm <- readRDS(file.path(
 #| label: list
 
 list <- list(
-  nb1 = nb1_baseArm,
-  nb2 = nb2_baseArm,
-  poi = poi_baseArm,
-  gau = gau_baseArm,
-  lognorm = lognorm_baseArm
+  nb1 = nb1_baseAge,
+  nb2 = nb2_baseAge,
+  poi = poi_baseAge,
+  gau = gau_baseAge,
+  lognorm = lognorm_baseAge
 )
 ```
 
@@ -219,11 +219,11 @@ poor_fits <- data.table::rbindlist(poor_fits)
 #| label: summaries
 
 summaries <- list(
-  gau = gau_baseArm$model_summary,
-  lognorm = lognorm_baseArm$model_summary,
-  poi = poi_baseArm$model_summary,
-  nb1 = nb1_baseArm$model_summary,
-  nb2 = nb2_baseArm$model_summary
+  gau = gau_baseAge$model_summary,
+  lognorm = lognorm_baseAge$model_summary,
+  poi = poi_baseAge$model_summary,
+  nb1 = nb1_baseAge$model_summary,
+  nb2 = nb2_baseAge$model_summary
 )
 
 summaries <- data.table::rbindlist(summaries, idcol = "dist")
@@ -355,7 +355,7 @@ bestDist_filtered <- bestDist %>%
 #| label: nbinom1 models
 
 nb1_models <- keep_at(
-  nb1_baseArm$all_models,
+  nb1_baseAge$all_models,
   filter(bestDist_filtered, dist == "nb1")$outcome_id
 )
 
@@ -376,7 +376,7 @@ if (exists("nb1_models") && length(nb1_models) > 0) {
     zero_link = "logit",
     optimizer = "nlminb"
   )
-  nb1_ogu_models <- nb1_baseArm$adj_results %>% filter(outcome_id %in% names(nb1_models))
+  nb1_ogu_models <- nb1_baseAge$adj_results %>% filter(outcome_id %in% names(nb1_models))
 }
 ```
 
@@ -401,7 +401,7 @@ if (exists("nb1_models") && length(nb1_models) > 0) {
 #| label: nbinom2 models
 
 nb2_models <- keep_at(
-  nb2_baseArm$all_models,
+  nb2_baseAge$all_models,
   filter(bestDist_filtered, dist == "nb2")$outcome_id
 )
 
@@ -423,7 +423,7 @@ if (exists("nb2_models") && length(nb2_models) > 0) {
     zero_link = "logit",
     optimizer = "nlminb"
   )
-nb2_ogu_models <- nb2_baseArm$adj_results %>% filter(outcome_id %in% names(nb2_models))
+nb2_ogu_models <- nb2_baseAge$adj_results %>% filter(outcome_id %in% names(nb2_models))
 }
 ```
 
@@ -447,7 +447,7 @@ if (exists("nb2_models") && length(nb2_models) > 0) {
 #| label: poi models
 
 poi_models <- keep_at(
-  poi_baseArm$all_models,
+  poi_baseAge$all_models,
   filter(bestDist_filtered, dist == "poi")$outcome_id
 )
 
@@ -469,7 +469,7 @@ if (exists("poi_models") && length(poi_models) > 0) {
     zero_link = "logit",
     optimizer = "nlminb"
   )
-poi_ogu_models <- poi_baseArm$adj_results %>% filter(outcome_id %in% names(poi_models))
+poi_ogu_models <- poi_baseAge$adj_results %>% filter(outcome_id %in% names(poi_models))
 }
 ```
 
@@ -492,7 +492,7 @@ if (exists("poi_models") && length(poi_models) > 0) {
 #| eval: true
 #| label: gau unfit models
 gau_models <- keep_at(
-  gau_baseArm$all_models,
+  gau_baseAge$all_models,
   filter(bestDist_filtered, dist == "gau")$outcome_id
 )
 
@@ -513,7 +513,7 @@ if (exists("gau_models") && length(gau_models) > 0) {
     zero_link = "logit",
     optimizer = "nlminb"
   )
-gau_ogu_models <- gau_baseArm$adj_results %>% filter(outcome_id %in% names(gau_models))
+gau_ogu_models <- gau_baseAge$adj_results %>% filter(outcome_id %in% names(gau_models))
 }
 ```
 
@@ -537,7 +537,7 @@ if (exists("gau_models") && length(gau_models) > 0) {
 #| label: lognorm unfit models
 
 lognorm_models <- keep_at(
-  lognorm_baseArm$all_models,
+  lognorm_baseAge$all_models,
   filter(bestDist_filtered, dist == "lognorm")$outcome_id
 )
 
@@ -558,7 +558,7 @@ if (exists("lognorm_models") && length(lognorm_models) > 0) {
     zero_link = "logit",
     optimizer = "nlminb"
   )
-lognorm_ogu_models <- lognorm_baseArm$adj_results %>% filter(outcome_id %in% names(lognorm_models))
+lognorm_ogu_models <- lognorm_baseAge$adj_results %>% filter(outcome_id %in% names(lognorm_models))
 }
 ```
 
@@ -589,7 +589,7 @@ save(
   poi_models,
   gau_models,
   lognorm_models,
-  file = file.path(filepath, "baseArm-finalised-fits.RData")
+  file = file.path(filepath, "baseAge-finalised-fits.RData")
 )
 ```
 
@@ -598,7 +598,7 @@ save(
 #| label: load
 #| echo: false
 
-load(file.path(filepath, "baseArm-finalised-fits.RData"))
+load(file.path(filepath, "baseAge-finalised-fits.RData"))
 
 ```
 
@@ -630,7 +630,7 @@ kable(
 
 save_and_link(
   data = summary,
-  filename = "baseArm-zero-inflated-ogu-model-summaries.csv",
+  filename = "baseAge-zero-inflated-ogu-model-summaries.csv",
   description = "Baseline zero-inflated OGU model summaries",
   use_filename = FALSE
 )
@@ -668,7 +668,7 @@ colnames(ziSig)[colnames(ziSig) == "rowname"] <- "outcome_id"
 
 save_and_link(
   data = summary,
-  filename = "baseArm-significant-ogus-zero-inflated-model.csv",
+  filename = "baseAge-significant-ogus-zero-inflated-model.csv",
   description = "Significant OGUs in FeZnPM based on ZI-GLMMs",
   use_filename = FALSE
 )
@@ -739,29 +739,44 @@ fits <- list_c(fits)
 
 #### OGUs Estimated marginal means
 
-The below estimates the mean for each `arm` at each `timepoint`, controlling for age at baseline
+| Scaled value | Age in days | Age              |
+|--------------|-------------|------------------|
+| 0.0529       | 365         | 1yr (12mths)     |
+| 0.454        | 456         | 1.25yrs (15mths) |
+| 0.859        | 548         | 1.5yrs (18mths)  |
+
 
 ```{r}
 #| eval: true
-#| label: Estimated marginal means for OGU abundances within each intervention arm
+#| label: Estimated marginal means for OGU abundances across different ages
 
 emm <- lapply(fits, function(x) {
-  emmeans(
+  emm <- emmeans(
     x,
     ~ age_B,
+    at = list(age_B = c(0.0529, 0.454, 0.859)),
     weights = "proportional",
     type = "scale"
   )
+
+  levels(emm)$age_B <- c(
+    "12mths",
+    "15mths",
+    "18mths"
+  )
+
+  return(emm)
+
 })
 
 ```
 
-##### OGU EMM differences between intervention arm at baseline and endpoint
+##### OGU EMM differences between age groups in the baseline cohort (n = 168)
 
 ```{r}
 #| eval: true
 #| label: tbl-emm-pairs
-#| tbl-cap: Comparison of abundance marginal mean estimates (EMMs) betweeen intervention arm at baseline and endpoint. Only those with p $\leq$ 0.05 are show for brevity.
+#| tbl-cap: Comparison of abundance marginal mean estimates (EMMs) betweeen age groups in the baseline cohort (n = 168). Only those with p $\leq$ 0.05 are show for brevity.
 
 emm_pairs <- lapply(emm, function(x) {
   contrast(
@@ -775,7 +790,7 @@ emm_pairs <- lapply(emm, function(x) {
 
 emm_pairs_df <- emm_bind(emm_pairs, kable = F)
 
-sigArms <- emm_pairs_df %>%
+sigAge <- emm_pairs_df %>%
   filter(p.value <= 0.05) %>%
   left_join(rownames_to_column(data$taxa_data, "Model"), by = "Model") %>%
   mutate(
@@ -795,7 +810,7 @@ The default value used to standardise the effect size is the model's residual st
 emmEff <- lapply(1:length(emm_pairs), function(i) {
   eff_size(
     emm_pairs[[i]],
-    sigma = attr(VarCorr(fits[[i]])$cond$subject, "stddev") * sqrt(2),
+    sigma = sigma(fits[[i]]),
     edf = df.residual(fits[[i]]),
     method = "identity",
     parens = FALSE
@@ -807,121 +822,54 @@ names(emmEff) <- names(emm_pairs)
 emmEff_df <- emm_bind(emmEff, kable = F)
 
 emmEff_df <- emmEff_df %>%
-  filter(Model %in% sigArms$Model) %>%
+  filter(Model %in% sigAge$Model) %>%
   mutate(
     magnitude = case_when(
       abs(effect.size) < 0.2 ~ "negligible",
       abs(effect.size) >= 0.2 & abs(effect.size) < 0.5 ~ "small",
       abs(effect.size) >= 0.5 & abs(effect.size) < 0.8 ~ "medium",
       abs(effect.size) >= 0.8 ~ "large",
-    ),
-    lower.CL = ifelse(is.na(lower.CL), asymp.LCL, lower.CL),
-    upper.CL = ifelse(is.na(upper.CL), asymp.UCL, upper.CL)
+    )
   ) %>%
   arrange(abs(effect.size)) %>%
-  select(Model, time, effect.size, magnitude) %>%
+  select(Model, contrast, effect.size, magnitude) %>%
   mutate_at(vars(everything()), type.convert, as.is = T)
 
-sigArmsEff <- left_join(sigArms, emmEff_df, by = c("Model", "time"))
+sigAgeEff <- left_join(sigAge, emmEff_df, by = c("Model", "contrast"))
 
+mth12v15 <- sigAgeEff %>%
+  filter(str_detect(contrast, "12mths")) %>%
+  filter(str_detect(contrast, "15mths"))
+
+mth12v18 <- sigAgeEff %>%
+  filter(str_detect(contrast, "12mths")) %>%
+  filter(str_detect(contrast, "18mths"))
 ```
 
 ```{r}
 #| eval: true
 #| label: fig-phyla-emms-effsize
-#| fig-cap: Estimated marginal mean differences between intervention arms at baseline and endpoint. Significant differences with an effect size > 0.5 (medium effect size) are shown in the plot.
+#| fig-cap: Estimated marginal mean differences between different age groups in the baseline cohort (n = 168). Significant differences with an effect size > 0.5 (medium effect size) are shown in the plot.
 
-plotPhylaEMMs(sigArmsEff) +
-  facet_wrap(~timepoint, scales = "free")
-```
-
-#### OGU EMM changes over time within each intervention arm
-
-```{r}
-#| eval: true
-#| label: tbl-emm-arm-trend
-#| tbl-cap: Rate of change per unit increase of abundance marginal mean estimates over time. The time.trend column represents the slope of the relationship with time.
-
-emm_bind(
-  trend <- lapply(fits, function(x) {
-    emtrends(x, ~ age_B, var = "time")
-  })
-)
+plotPhylaEMMs(mth12v15, highlight_common = FALSE)
 ```
 
 ```{r}
 #| eval: true
-#| label: tbl-emm-arm-trend-compare
-#| tbl-cap: Comparison of the rates of change from baseline to endpoint in abundance EMMs between intervention arms.
+#| label: fig-phyla-emms
+#| fig-cap: Estimated marginal mean differences between different age groups in the baseline cohort (n = 168). Significant differences with an effect size > 0.5 (medium effect size) are shown in the plot.
 
-emm_bind(slopes <- lapply(trend, pairs, reverse = TRUE))
-
-slopes_df <- emm_bind(slopes, kable = F)
-
-sigArmsTime <- slopes_df %>%
-  filter(p.value <= 0.05) %>%
-  left_join(rownames_to_column(data$taxa_data, "Model"), by = "Model") %>%
-  mutate(timepoint = ifelse(time == 1, "Endpoint", "Basepoint"))
-```
-
-##### Effect Size
-
-The default value used to standardise the effect size is the model's residual standard deviation (sigma; within-group variation). However, this may underestimate effect sizes in mixed models where combined variance may be more accurate. Here, the random effect variance is used to standardise effect sizes.
-
-```{r}
-#| eval: true
-#| label: sigArm-eff
-#| fig-cap: NA
-#| tbl-cap: Effect sizes calculated as a standardized mean difference similar to Cohen's d.
-
-emmEff <- lapply(1:length(slopes), function(i) {
-  eff_size(
-    slopes[[i]],
-    sigma = attr(VarCorr(fits[[i]])$cond$subject, "stddev") * sqrt(2),
-    edf = df.residual(fits[[i]]),
-    method = "identity",
-    parens = FALSE
-  )
-})
-
-names(emmEff) <- names(slopes)
-
-emmEff_df <- emm_bind(emmEff, kable = F)
-
-emmEff_df <- emmEff_df %>%
-  filter(Model %in% sigArmsTime$Model) %>%
-  mutate(
-    magnitude = case_when(
-      abs(effect.size) < 0.2 ~ "negligible",
-      abs(effect.size) >= 0.2 & abs(effect.size) < 0.5 ~ "small",
-      abs(effect.size) >= 0.5 & abs(effect.size) < 0.8 ~ "medium",
-      abs(effect.size) >= 0.8 ~ "large",
-    ),
-    lower.CL = ifelse(is.na(lower.CL), asymp.LCL, lower.CL),
-    upper.CL = ifelse(is.na(upper.CL), asymp.UCL, upper.CL)
-  ) %>%
-  arrange(abs(effect.size)) %>%
-  select(Model, time, effect.size, magnitude) %>%
-  mutate_at(vars(everything()), type.convert, as.is = T)
-
-sigArmsTimeEff <- left_join(sigArmsTime, emmEff_df, by = c("Model", "time"))
-
-```
-
-```{r}
-#| eval: true
-#| label: fig-phyla-emms-effsize
-#| fig-cap: Estimated marginal mean differences between intervention arms at baseline and endpoint. Significant differences with an effect size > 0.5 (medium effect size) are shown in the plot.
-
-plotPhylaEMMs(filter(sigArmsTimeEff, effect.size >= 0.5))
+plotPhylaEMMs(mth12v18, highlight_common = FALSE)
 ```
 
 ### Zero-inflated Componet EMMs
 
+#TODO
+
 ```{r}
 #| eval: true
 #| label: tbl-emms
-#| tbl-cap: Estimated marginal means for OGU abundances within each intervention arm
+#| tbl-cap: Estimated marginal means for OGU abundances between age groups in the baseline cohort (n = 168)
 
 emm_zi <- lapply(fits, function(x) {
   # Get EMMs for arm at each time point
@@ -929,7 +877,7 @@ emm_zi <- lapply(fits, function(x) {
     x,
     ~ age_B,
     
-    adjust = "sidak",
+    adjust = "fdr",
     weights = "proportional",
     type = "scale",
     component = "zi"
@@ -940,12 +888,12 @@ emm_zi <- lapply(fits, function(x) {
 zi_probs <- lapply(emm_zi, regrid, transform = "logit")
 ```
 
-##### OGU EMM differences between intervention arm at baseline and endpoint
+##### OGU EMM differences between age groups in the baseline cohort (n = 168)
 
 ```{r}
 #| eval: true
 #| label: tbl-emm-pairs
-#| tbl-cap: Comparison of abundance marginal mean estimates (EMMs) betweeen intervention arm at baseline and endpoint
+#| tbl-cap: Comparison of abundance marginal mean estimates (EMMs) betweeen age groups in the baseline cohort (n = 168)
 
 emm_bind(emm_zi_pairs <- lapply(emm_zi, pairs, reverse = TRUE))
 
@@ -1030,7 +978,7 @@ plotPhylaEMMs(ZIsigArmsEff) +
   facet_wrap(~timepoint, scales = "free")
 ```
 
-#### OGU EMM changes over time within each intervention arm
+#### OGU EMM changes over time between age groups in the baseline cohort (n = 168)
 
 ```{r}
 #| eval: true
@@ -1116,6 +1064,8 @@ plotPhylaEMMs(filter(ZIsigArmsTimeEff))
 
 ## Effect of Stunting on OGU Abundances
 
+#TODO
+
 ```{r}
 #| eval: false
 #| label: stunt-model
@@ -1131,12 +1081,11 @@ poi_stunt <- genZI(
 )
 
 compare_nested_models(list(
-  poi_models = keep_at(poi_baseArm, names(poi_models)),
+  poi_models = keep_at(poi_baseAge, names(poi_models)),
   poi_stunt = poi_stunt
 ))
 
 ```
-
 
 ## Note on applying Structured Covariance Matricies to Zero-inflated data
 
