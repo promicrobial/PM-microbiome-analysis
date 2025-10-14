@@ -1,0 +1,197 @@
+## Differential abundance between Intervention arms at Endpoint with ANCOM-BC
+
+```{r}
+#| echo: false
+#| eval: true
+#| label: setup
+suppressWarnings(suppressMessages({
+  source(normalizePath("utils/r-utils.r"))
+  source(normalizePath("_environment.required"))
+  load(normalizePath("data/seqdata.RData"))
+
+  library(ANCOMBC)
+  library(promicrobialTools)
+
+  prefix <- "endArm-DA-"
+  filepath <- get_results_dir(directory_naming = "both")
+}))
+```
+
+Results will be saved to ``r filepath``.
+
+```{r}
+#| eval: true
+#| label: data-prep
+#| fig-cap: NA
+#| tbl-cap: NA
+phyloseq_summary(
+  endpoint <- phyloseq::subset_samples(seqdata_bac, timepoint == "Endpoint")
+)
+
+check <- data_sanity_check(endpoint, fix_formula = "arm")
+```
+
+::: {.callout-important}
+The `ancombc2` function is needed for repeated measures (can be used for cross-sectional too and can accommodate continuous covariates). `ancombc` can only be used for cross-sectional data.
+:::
+
+::: {.callout-warning}
+The ANOCOM-BC2 method uses a natural log transformation not a log2 transformation like other DAA methods [@Lin2025].
+:::
+
+### Differences in between intervention arms at endpoint
+
+```{r}
+#| eval: true
+#| label: ancombc
+#| fig-cap: NA
+#| tbl-cap: NA
+
+endArmANCOM <- ancombc2(
+  endpoint,
+  taxa_are_rows = TRUE,
+  assay_name = "abundance",
+  rank = tax_level,
+  tax_level = NULL,
+  fix_formula = "arm",
+  rand_formula = NULL,
+  p_adj_method = "BH",
+  pseudo = 0,
+  pseudo_sens = TRUE,
+  prv_cut = 0.1,
+  lib_cut = 0,
+  s0_perc = 0.05,
+  struc_zero = FALSE,
+  neg_lb = FALSE,
+  alpha = 0.05,
+  n_cl = 1,
+  verbose = TRUE,
+  global = FALSE,
+  pairwise = FALSE,
+  dunnet = FALSE,
+  trend = FALSE,
+  iter_control = list(tol = 0.01, max_iter = 20, verbose = FALSE),
+  em_control = list(tol = 1e-05, max_iter = 100),
+  lme_control = lme4::lmerControl(),
+  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
+  trend_control = list(contrast = NULL, node = NULL, solver = "ECOS", B = 100)
+)
+
+endArmANCOM_prim <- endArmANCOM$res
+```
+
+```{r}
+#| eval: true
+#| results: asis
+
+save_and_link(
+  data = endArmANCOM_prim,
+  filename = paste0(prefix, "ancombc.csv"),
+  description = "Endpoint ANCOM-BC results comparing DA OGUs between intervention arms",
+  directory_naming = "both"
+)
+```
+
+```{r}
+#| eval: true
+
+endArm <- endArmANCOM_prim %>%
+  select(taxon, ends_with("_armFeZnPM")) %>%
+  dplyr::filter(
+    diff_armFeZnPM == TRUE & passed_ss_armFeZnPM == TRUE
+  )
+```
+
+`r nrow(endArm)` passed ANCOM-BC sensitivity filtering.
+
+```{r}
+#| eval: true
+#| label: tbl-summary
+#| tbl-cap: ANCOM-BC significant (FDR) OGU fold changes
+
+endArm <- endArm %>%
+  mutate(
+    Result_FC1.2 = case_when(
+      lfc_armFeZnPM < 0 &
+        q_armFeZnPM <= 0.05 &
+        abs(lfc_armFeZnPM) >= log(1.2) ~
+        "Decrease",
+      lfc_armFeZnPM > 0 &
+        q_armFeZnPM <= 0.05 &
+        abs(lfc_armFeZnPM) >= log(1.2) ~
+        "Increase",
+      TRUE ~ "No change"
+    ),
+    Result_FC2 = case_when(
+      lfc_armFeZnPM < 0 &
+        q_armFeZnPM <= 0.05 &
+        abs(lfc_armFeZnPM) >= log(2) ~
+        "Decrease",
+      lfc_armFeZnPM > 0 &
+        q_armFeZnPM <= 0.05 &
+        abs(lfc_armFeZnPM) >= log(2) ~
+        "Increase",
+      TRUE ~ "No change"
+    )
+  )
+
+colnames(endArm) <- str_remove(colnames(endArm), "_armFeZnPM")
+
+kable(
+  endArm %>%
+    select(taxon, Result_FC1.2, Result_FC2) %>%
+    pivot_longer(cols = c(Result_FC1.2, Result_FC2)) %>%
+    group_by(name, value) %>%
+    summarise(n = n())
+)
+```
+
+```{r}
+#| eval: true
+#| label: fig-baseArm
+#| fig-cap: Differentially abundant taxa in the intervention arm, FeZnPM, compared to control (CPM) at Endpoint. Significant taxa were determined to be so if they had a FDR adjusted p-value $\leq$ 0.05 and a fold change of 1.2 or more. They must also have passed ANCOM-BC sensitivity filtering.
+plotDAvol(
+  endArm,
+  title = "Differentially abundant taxa in FeZnPM compared CPM",
+  p.fdr = q,
+  p.threshold = 0.05,
+  lfc.threshold = log(1.2)
+)
+```
+
+```{r}
+#| eval: true
+#| label: fig-endArm
+#| fig-cap: Differentially abundant taxa in the intervention arm, FeZnPM, compared to control (CPM) at Endpoint. Significant taxa were determined to be so if they had a FDR adjusted p-value $\leq$ 0.05 and a fold change of 2 or more. They must also have passed ANCOM-BC sensitivity filtering.
+plotDAvol(
+  endArm,
+  title = "Differentially abundant taxa in FeZnPM compared CPM",
+  p.fdr = q,
+  p.threshold = 0.05,
+  lfc.threshold = log(2)
+)
+```
+
+## Results Summary
+
+```{r}
+#| eval: true
+#| echo: false
+#| results: asis
+
+list_all_results()
+```
+
+```{r}
+#| results: asis
+generate_results_section(directory_naming = "both")
+```
+
+## Appendix
+
+```{r}
+#| eval: true
+#| label: info
+
+sessionInfo()
+```

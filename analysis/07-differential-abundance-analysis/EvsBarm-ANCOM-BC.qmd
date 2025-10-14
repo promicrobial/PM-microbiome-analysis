@@ -1,0 +1,337 @@
+## Rate of Change of Differentially Abundant OGUs in FeZnPM at Endpoint with ANCOM-BC
+
+```{r}
+#| echo: false
+#| eval: true
+#| label: setup
+suppressWarnings(suppressMessages({
+  source(normalizePath("utils/r-utils.r"))
+  source(normalizePath("_environment.required"))
+  load(normalizePath("data/seqdata.RData"))
+
+  metadata <- read_delim(normalizePath(METADATA))
+  bac_base_end_meta <- readRDS(normalizePath(
+    "data/metadata/base-end-metadata.rds"
+  ))
+
+  library(promicrobialTools)
+  library(ANCOMBC)
+
+  prefix <- "EvsBarm-DA-"
+  filepath <- get_results_dir(directory_naming = "both")
+}))
+```
+
+Results will be saved to ``r filepath``.
+
+```{r}
+#| eval: true
+#| label: data-prep
+
+phyloseq_summary(absAbund)
+
+check <- data_sanity_check(absAbund, fix_formula = "arm * timepoint")
+```
+
+::: {.callout-important}
+The `ancombc2` function is needed for repeated measures (can be used for cross-sectional too and can accommodate continuous covariates). `ancombc` can only be used for cross-sectional data.
+:::
+
+::: {.callout-warning}
+The ANOCOM-BC2 method uses a natural log transformation not a log2 transformation like other DAA methods [@Lin2025].
+:::
+
+### Cross-sectional comparisons
+
+```{r}
+#| eval: true
+base <- subset_samples(absAbund, timepoint == "Baseline")
+end <- subset_samples(absAbund, timepoint == "Endpoint")
+```
+
+#### Baseline arm differences
+
+```{r}
+#| eval: true
+#| label: ancombc
+#| fig-cap: NA
+#| tbl-cap: NA
+
+base_results <- ancombc2(
+  base,
+  taxa_are_rows = TRUE,
+  assay_name = "abundance",
+  rank = tax_level,
+  tax_level = NULL,
+  fix_formula = "arm",
+  p_adj_method = "BH",
+  pseudo = 0,
+  pseudo_sens = TRUE,
+  prv_cut = 0.1,
+  lib_cut = 0,
+  s0_perc = 0.05,
+  struc_zero = FALSE,
+  neg_lb = FALSE,
+  alpha = 0.05,
+  n_cl = 1,
+  verbose = TRUE,
+  global = FALSE,
+  pairwise = FALSE,
+  dunnet = FALSE,
+  trend = FALSE,
+  iter_control = list(tol = 0.01, max_iter = 20, verbose = FALSE),
+  em_control = list(tol = 1e-05, max_iter = 100),
+  lme_control = lme4::lmerControl(),
+  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
+  trend_control = list(contrast = NULL, node = NULL, solver = "ECOS", B = 100)
+)
+
+base_prim <- base_results$res
+```
+
+```{r}
+#| eval: true
+#| results: asis
+save_and_link(
+  data = base_prim,
+  filename = paste0(prefix, "baseline-ancombc.csv"),
+  description = "ANCOM-BC results comparing DA OGUS between intervention arms at Baseline in paired samples only",
+  directory_naming = "both"
+)
+```
+
+```{r}
+#| eval: true
+#| label: fig-base
+#| fig-cap: Differentially abundant taxa in the FeZnPM intervention group at Baseline. Significant taxa were determined to be so if they had a FDR adjusted p-value $\leq$ 0.05 and a fold change of 2 or more
+
+baseFiltered <- base_prim %>%
+  select(taxon, ends_with("_armFeZnPM")) %>%
+  dplyr::filter(
+    diff_armFeZnPM == TRUE & passed_ss_armFeZnPM == TRUE
+  )
+
+colnames(baseFiltered) <- str_remove(colnames(baseFiltered), "_armFeZnPM")
+
+plotDAvol(
+  baseFiltered,
+  title = "Differentially abundant OGUs in the FeZnPM intervention group at Baseline",
+  p.fdr = q
+)
+
+```
+
+#### Endpoint arm differences
+
+```{r}
+#| eval: true
+#| label: ancombc
+#| fig-cap: NA
+#| tbl-cap: NA
+
+end_results <- ancombc2(
+  end,
+  taxa_are_rows = TRUE,
+  assay_name = "abundance",
+  rank = tax_level,
+  tax_level = NULL,
+  fix_formula = "arm",
+  p_adj_method = "BH",
+  pseudo = 0,
+  pseudo_sens = TRUE,
+  prv_cut = 0.1,
+  lib_cut = 0,
+  s0_perc = 0.05,
+  struc_zero = FALSE,
+  neg_lb = FALSE,
+  alpha = 0.05,
+  n_cl = 1,
+  verbose = TRUE,
+  global = FALSE,
+  pairwise = FALSE,
+  dunnet = FALSE,
+  trend = FALSE,
+  iter_control = list(tol = 0.01, max_iter = 20, verbose = FALSE),
+  em_control = list(tol = 1e-05, max_iter = 100),
+  lme_control = lme4::lmerControl(),
+  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
+  trend_control = list(contrast = NULL, node = NULL, solver = "ECOS", B = 100)
+)
+
+end_prim <- end_results$res
+```
+
+```{r}
+#| eval: true
+#| results: asis
+
+save_and_link(
+  data = end_prim,
+  filename = paste0(prefix, "endpoint-ancombc.csv"),
+  description = "ANCOM-BC results comparing DA OGUS between intervention arms at Endpoint in paired samples only",
+  directory_naming = "both"
+)
+```
+
+```{r}
+#| eval: true
+#| label: fig-end
+#| fig-cap: Differentially abundant taxa in the FeZnPM intervention group at Endpoint. Significant taxa were determined to be so if they had a FDR adjusted p-value $\leq$ 0.05 and a fold change of 2 or more
+
+endFiltered <- end_prim %>%
+  select(taxon, ends_with("_armFeZnPM")) %>%
+  dplyr::filter(
+    diff_armFeZnPM == TRUE & passed_ss_armFeZnPM == TRUE
+  )
+
+colnames(endFiltered) <- str_remove(colnames(endFiltered), "_armFeZnPM")
+
+plotDAvol(
+  endFiltered,
+  title = "Differentially abundant OGUs in the FeZnPM intervention group at Baseline",
+  p.fdr = q
+)
+
+```
+
+### Differences in rates of change overtime between intervention arms
+
+```{r}
+#| eval: true
+#| label: ancombc
+
+EvsBarmANCOM <- ancombc2(
+  absAbund,
+  taxa_are_rows = TRUE,
+  assay_name = "abundance",
+  rank = tax_level,
+  tax_level = NULL,
+  fix_formula = "timepoint * arm",
+  p_adj_method = "BH",
+  pseudo = 0,
+  pseudo_sens = TRUE,
+  prv_cut = 0.1,
+  lib_cut = 0,
+  s0_perc = 0.05,
+  group = "arm",
+  struc_zero = TRUE,
+  neg_lb = FALSE,
+  alpha = 0.05,
+  n_cl = 1,
+  verbose = TRUE,
+  global = FALSE,
+  pairwise = FALSE,
+  dunnet = FALSE,
+  trend = FALSE,
+  iter_control = list(tol = 0.01, max_iter = 20, verbose = FALSE),
+  em_control = list(tol = 1e-05, max_iter = 100),
+  lme_control = lme4::lmerControl(),
+  mdfdr_control = list(fwer_ctrl_method = "holm", B = 100),
+  trend_control = list(contrast = NULL, node = NULL, solver = "ECOS", B = 100)
+)
+
+EvsBarmANCOM_prim <- EvsBarmANCOM$res
+```
+
+```{r}
+#| eval: true
+#| results: asis
+
+save_and_link(
+  data = EvsBarmANCOM_prim,
+  filename = paste0(prefix, "ancombc.csv"),
+  description = "ANCOM-BC results comparing DA OGUS between intervention arms over time (rate of change)",
+  directory_naming = "both"
+)
+
+```
+::: {.callout-tip}
+
+Coefficient Interpretations:
+
+1. `lfc_(Intercept)`
+   - Represents the "starting point" for all comparisons
+   - Reference group at reference timepoint
+   - This is the baseline abundance for the CPM arm at Baseline
+2. `lfc_armFeZnPM`
+   - Main effect of treatment arm
+   - Difference between FeZnPM vs CPM at the reference timepoint only (Baseline)
+   - This is the treatment effect at baseline (before the timepoint change occurs)
+   - Interpretation: "How different is FeZnPM from CPM at the starting timepoint?"
+3. `lfc_timepointEndpoint`
+  - Main effect of time
+  - Difference between endpoint vs reference timepoint in the reference arm only
+  - This is the time effect in the control group
+  - Interpretation: "How much does the reference arm change from start to endpoint?"
+4. `lfc_armFeZnPM:timepointEndpoint`
+  - Interaction effect (most important for intervention studies)
+  - Additional change in FeZnPM arm at endpoint, beyond what happens in the reference arm
+  - This is the differential treatment effect - how the treatment response differs over time
+  - Interpretation: "Does the FeZnPM treatment have a different effect at endpoint compared to the reference arm's change over time?"
+
+:::
+
+
+```{r}
+#| eval: true
+#| label: fig-end
+#| fig-cap: Impact of FeZnPM over time compared to CPM. This is the differential treatment effect i.e. the additional change in OGU abundances in the FeZnPM arm at endpoint, beyond what happens in the CPM reference arm. Differentially abundant taxa in the FeZnPM intervention group at Endpoint. Significant taxa were determined to be so if they had a FDR adjusted p-value $\leq$ 0.05 and a fold change of 2 or more
+
+EvsBarmANCOMFiltered <- EvsBarmANCOM_prim %>%
+  select(taxon, ends_with("timepointEndpoint:armFeZnPM")) %>%
+  dplyr::filter(
+    `diff_timepointEndpoint:armFeZnPM` == TRUE &
+      `passed_ss_timepointEndpoint:armFeZnPM` == TRUE
+  )
+
+colnames(EvsBarmANCOMFiltered) <- str_remove(
+  colnames(EvsBarmANCOMFiltered),
+  "_timepointEndpoint:armFeZnPM"
+)
+
+plotDAvol(
+  EvsBarmANCOMFiltered,
+  title = "OGUs that change at a significantly different rate overtime in the FeZnPM intervention group compared to the rate of change in the CPM group",
+  p.fdr = q
+)
+
+```
+
+## Results Summary
+
+```{r}
+#| eval: true
+#| echo: false
+#| results: asis
+
+list_all_results()
+```
+
+```{r}
+#| results: asis
+generate_results_section(directory_naming = "both")
+```
+
+## Results Summary
+
+```{r}
+#| eval: true
+#| echo: false
+#| results: asis
+
+list_all_results()
+```
+
+```{r}
+#| results: asis
+generate_results_section(directory_naming = "both")
+```
+
+## Appendix
+
+```{r}
+#| eval: true
+#| label: info
+
+sessionInfo()
+```

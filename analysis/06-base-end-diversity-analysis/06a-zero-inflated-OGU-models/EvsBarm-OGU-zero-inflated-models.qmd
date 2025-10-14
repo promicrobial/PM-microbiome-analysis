@@ -1,0 +1,1443 @@
+# Investigating changes in OGU abundance over time using Zero-inflated Regression Models with Random Effects
+
+```{r setup}
+#| echo: false
+#| eval: true
+#| label: setup
+
+# This initial code block loads custom utility functions and environment variables
+# These are stored in separate files to keep the main analysis clean and organized
+suppressWarnings(suppressMessages({
+  source("utils/r-utils.r")
+  source("scripts/OGeeU.r")
+  source("scripts/zeroGUS.r")
+
+  source("_environment.required")
+  load("data/seqdata.RData")
+
+  library(glmmTMB)
+  library(DHARMa)
+  library(broom)
+  library(patchwork)
+  library(emmeans)
+  library(ggtext)
+
+  library(promicrobialTools)
+  prefix <- "EvsBarm-"
+
+  filepath <- get_results_dir(directory_naming = "both")
+}))
+```
+
+## Prepare Outcome and Predictor Variables
+```{r data-prep}
+#| eval: true
+#| label: data prep
+
+data <- prepare_ogu_data(
+  absAbund,
+  filter_prevalence = TRUE,
+  prevalence_cutoff = 0.4,
+  filter_abundance = FALSE
+)
+
+outcome <- data$ogu_data
+rownames(outcome) <- str_replace(
+  str_replace(str_remove(rownames(outcome), "_G"), "_B_B", "_B"),
+  "_B_E",
+  "_E"
+)
+
+predictors <- prepare_predictors(data$meta_data)
+predictors <- predictors %>%
+  select(subject, time, timepoint, arm, age_B) %>%
+  mutate(arm = case_when(arm == "CPM" ~ 0, arm == "FeZnPM" ~ 1)) %>%
+  rownames_to_column(var = "sample") %>%
+  mutate(
+    baseline_sample = str_replace(sample, "_G_E|_B_E|_E|_G_B|_B_B", "_B"),
+    sample = str_remove(sample, "_G"),
+  ) %>%
+  mutate(sample = str_replace(sample, "_B_B", "_B")) %>%
+  mutate(sample = str_replace(sample, "_B_E", "_E"))
+```
+
+## Variable Characteristics
+
+### Predictor Variables
+
+```{r}
+#| eval: true
+#| label: predictor-describe
+#| results: asis
+
+Hmisc::describe(predictors)
+
+```
+
+### OGU Outcome Variables
+
+```{r zero-hist}
+#| eval: true
+#| label: fig-outcome-zeroProp
+#| fig-cap: Distribution of zero proportions across variables
+
+analyze_zeros(outcome, "density")
+```
+
+```{r disp}
+#| eval: true
+#| label: fig-outcome-dispersion
+#| fig-cap: Distribution of dispearsion, defined as the variance-to-mean ratio. A log10 scale is used.
+
+outdisp <- varDisp(outcome, threshold = 2, verbose = FALSE)
+
+plot(outdisp, col = "#8CAAEE")
+
+```
+
+Generally, if the dispersion ratio is > 2 (0.3 on the log_10 scale), fitting a Poisson model will not accurately model the data (Poisson assumes that variance $\approx$ mean).
+
+|      Model       |          Continuous component           | ZI component |                   Test                    |
+|:----------------:|:---------------------------------------:|:------------:|:-----------------------------------------:|
+|   noZi_models    |                  y ~ 1                  |     ~ 0      |  Is the zero-inflated component needed?   |
+|   null_models    |                  y ~ 1                  |     ~ 1      | Tests if predictors affect zero-inflation |
+| noZi_rand_models |         y ~ 1 + (1 \| subject)          |     ~ 0      |      Is the random intercept needed?      |
+| null_rand_models |         y ~ 1 + (1 \| subject)          |     ~ 1      |                                           |
+|        m1        | y ~ arm * time + age_B + (1 \| subject) | ~ arm * time |                                           |
+|                  |                                         |              |                                           |
+
+: List of model formulae tested
+
+## Determining Direction of Change in Abundance over Time
+
+```{r}
+#| eval: true
+#| label: tbl-abundance-changes
+#| tbl-cap: Count Changes between Baseline and Endpoint
+
+joined_data <- predictors %>%
+  left_join(rownames_to_column(outcome, "sample"), by = "sample") %>%
+  pivot_longer(
+    cols = !c(
+      "sample",
+      "subject",
+      "arm",
+      "timepoint",
+      "time",
+      "age_B",
+      "baseline_sample"
+    ),
+    names_to = "outcome_id"
+  )
+
+(joined_data_changes <- joined_data %>%
+  group_by(outcome_id, timepoint) %>%
+  summarise(average_count = mean(value)) %>%
+  pivot_wider(
+    names_from = timepoint,
+    values_from = average_count,
+    values_fill = 0
+  ) %>%
+  mutate(EvsB = Endpoint - Baseline) %>%
+  mutate(
+    difference = case_when(
+      EvsB < 0 ~ "Decrease",
+      EvsB > 0 ~ "Increase",
+      EvsB == 0 ~ "None",
+      TRUE ~ NA
+    )
+  ) %>%
+  group_by(difference) %>%
+  summarise(total = n()) %>%
+  kable())
+```
+
+The purpose of these models will be to determine if these changes are significant.
+
+## Testing different distributions
+
+The following distribution families were used to fit a zero-inflated model:
+
+- Poisson
+- Simple negative binomial (linear parameterization) [@Hardin2007]
+- Complex negative binomial (quadratic parameterization) [@Hardin2007]
+- Gaussian
+- Log normal
+
+```{r fit}
+#| eval: false
+nb2_EvsBarm <- genZI(
+  outcome,
+  predictors,
+  formula = "time + arm + age_B + arm:time + (1 | subject)",
+  zi = "~ arm * time",
+  family = "nbinom2"
+)
+
+nb1_EvsBarm <- genZI(
+  outcome,
+  predictors,
+  formula = "time + arm + age_B + arm:time + (1 | subject)",
+  zi = "~ arm * time",
+  family = "nbinom1"
+)
+
+poi_EvsBarm <- genZI(
+  outcome,
+  predictors,
+  formula = "time + arm + age_B + arm:time + (1 | subject)",
+  zi = "~ arm * time",
+  family = "poisson"
+)
+
+gau_EvsBarm <- genZI(
+  outcome,
+  predictors,
+  formula = "time + arm + age_B + arm:time + (1 | subject)",
+  zi = "~ arm * time",
+  family = "gaussian"
+)
+
+lognorm_EvsBarm <- genZI(
+  outcome,
+  predictors,
+  formula = "time + arm + age_B + arm:time + (1 | subject)",
+  zi = "~ arm * time",
+  family = "lognormal"
+)
+```
+
+```{r save}
+#| eval: false
+#| echo: false
+saveRDS(
+  nb2_EvsBarm,
+  file.path(filepath, paste0(prefix, "genZI-OGU-nb2.rds"))
+)
+
+saveRDS(
+  nb1_EvsBarm,
+  file.path(filepath, paste0(prefix, "genZI-OGU-nb1.rds"))
+)
+
+saveRDS(
+  poi_EvsBarm,
+  file.path(filepath, paste0(prefix, "genZI-OGU-poi.rds"))
+)
+
+saveRDS(
+  gau_EvsBarm,
+  file.path(filepath, paste0(prefix, "genZI-OGU-gau.rds"))
+)
+
+saveRDS(
+  lognorm_EvsBarm,
+  file.path(filepath, paste0(prefix, "genZI-OGU-lognorm.rds"))
+)
+```
+
+```{r load}
+#| eval: true
+#| echo: false
+nb2_EvsBarm <- readRDS(file.path(
+  filepath,
+  "EvsBarm-genZI-OGU-nb2.rds"
+))
+
+nb1_EvsBarm <- readRDS(file.path(
+  filepath,
+  "EvsBarm-genZI-OGU-nb1.rds"
+))
+
+poi_EvsBarm <- readRDS(file.path(
+  filepath,
+  "EvsBarm-genZI-OGU-poi.rds"
+))
+
+gau_EvsBarm <- readRDS(file.path(
+  filepath,
+  "EvsBarm-genZI-OGU-gau.rds"
+))
+
+lognorm_EvsBarm <- readRDS(file.path(
+  filepath,
+  "EvsBarm-genZI-OGU-lognorm.rds"
+))
+```
+
+### Model diagnostic failures
+
+```{r}
+#| eval: true
+#| label: list
+
+list <- list(
+  gau = gau_EvsBarm,
+  lognorm = lognorm_EvsBarm,
+  poi = poi_EvsBarm,
+  nb1 = nb1_EvsBarm,
+  nb2 = nb2_EvsBarm
+)
+```
+
+```{r}
+#| eval: true
+#| label: diagnose-mods
+#| results: hide
+
+poor_fits <- lapply(1:length(list), function(x) {
+  d <- diagnoseZI(list[[x]]$all_models)
+  d$dist <- names(list)[x]
+
+  return(d)
+})
+
+poor_fits <- data.table::rbindlist(poor_fits)
+```
+
+### Comparing Model AIC and BIC values
+
+```{r}
+#| eval: true
+#| label: summaries
+
+summaries <- list(
+  gau = gau_EvsBarm$model_summary,
+  lognorm = lognorm_EvsBarm$model_summary,
+  poi = poi_EvsBarm$model_summary,
+  nb1 = nb1_EvsBarm$model_summary,
+  nb2 = nb2_EvsBarm$model_summary
+)
+
+summaries <- data.table::rbindlist(summaries, idcol = "dist")
+
+summaries <- left_join(summaries, poor_fits, by = c("outcome_id", "dist"))
+```
+
+```{r}
+#| eval: true
+#| label: any-errors
+
+if (any(summaries$error_message != "")) {
+  print("Some models returned an error message")
+  ind <- which(summaries$error_message != "")
+  kable(summaries[ind, ])
+}
+
+```
+
+```{r}
+#| eval: true
+#| label: diag-compare
+summaries <- summaries %>%
+  filter(pass == TRUE) %>%
+  select(!c(error_message, message)) %>%
+  mutate(index = 1:nrow(.)) %>% #make it easier to distinguish between outcome ids
+  pivot_longer(
+    cols = !c(index, outcome_id, dist, pass),
+    names_to = "criterion",
+    values_to = "value"
+  )
+```
+
+```{r}
+#| eval: true
+#| label: best-AIC
+
+aic <- summaries %>%
+  filter(criterion == "AIC") %>%
+  group_by(criterion, outcome_id) %>%
+  arrange(value) %>%
+  slice(1) %>%
+  ungroup() %>%
+  select(index, outcome_id, minAIC = value, distAIC = dist)
+```
+
+```{r}
+#| eval: true
+#| label: best-BIC
+
+bic <- summaries %>%
+  filter(criterion == "BIC") %>%
+  group_by(criterion, outcome_id) %>%
+  arrange(value) %>%
+  slice(1) %>%
+  ungroup() %>%
+  select(index, outcome_id, minBIC = value, distBIC = dist)
+
+```
+
+```{r}
+#| eval: true
+#| label: tbl-best-fits
+#| tbl-cap: Best fit models based on AIC and BIC
+
+(bestDist <- left_join(aic, bic) %>%
+  mutate(dist = ifelse(distAIC == distBIC, distAIC, "Undetermined")))
+```
+
+### Checking for deviations in model assumptions
+
+::: {.callout-note}
+
+The larger the dispersion value, $\theta$ in `nbinom2` models, the less variance there is in the model [@Brooks2017].
+:::
+
+`dharmaDisp` represents the dispersion ratio, which should ideally be close to 1
+
+```{r}
+#| eval: true
+#| label: tbl-best-disp
+#| tbl-cap: lowest disp value for models that passed diagnostics
+
+dispRatio <- summaries %>%
+  filter(criterion == "dharmaDisp") %>%
+  group_by(criterion, outcome_id) %>%
+  mutate(skew = abs(value - 1)) %>%
+  arrange(skew) %>%
+  slice(1) %>%
+  ungroup() %>%
+  select(index, outcome_id, bestDisp = value, distDisp = dist)
+```
+
+```{r}
+#| eval: true
+#| label: tbl-pvals
+#| tbl-cap: NA
+
+pvals <- left_join(
+  bestDist,
+  summaries,
+  by = c("index", "outcome_id", "dist")
+) %>%
+  filter(str_detect(criterion, "Pvalue"), value <= 0.05) %>%
+  arrange(index)
+```
+
+`r n_distinct(pvals$outcome_id)` models have a significant test result making the model fit problematic
+
+### Final Model Distributions
+
+```{r}
+#| eval: true
+#| label: best-dist-filtered
+#| fig-cap: NA
+#| tbl-cap: NA
+
+bestDist_filtered <- bestDist %>%
+  filter(!outcome_id %in% pvals$outcome_id)
+```
+
+## Fitting models to best distribution
+
+### Zero-inflated Negative Binomial 1 Models
+
+```{r}
+#| eval: true
+#| label: nbinom1 models
+
+nb1_models <- keep_at(
+  nb1_EvsBarm$all_models,
+  filter(bestDist_filtered, dist == "nb1")$outcome_id
+)
+
+```
+
+```{r}
+#| eval: true
+#| label: nb1-summary
+
+if (exists("nb1_models") && length(nb1_models) > 0) {
+  nb1_unfit <- diagnoseZI(nb1_models)
+  nb1_summary <- data.frame(
+    outcome_id = names(nb1_models),
+    continuous_distribution = "nbinom1",
+    continuous_link = "log",
+    covaraince_structure = "unstructured",
+    zero_distribution = "binary",
+    zero_link = "logit",
+    optimizer = "nlminb"
+  )
+  nb1_ogu_models <- nb1_EvsBarm$adj_results %>%
+    filter(outcome_id %in% names(nb1_models))
+}
+```
+
+Are there any models that fail diagnostics: `r if (exists("nb1_models") && length(nb1_models) > 0) {any(nb1_unfit$pass == FALSE)} else {paste("NA- no models generated by this fit")}`
+
+```{r}
+#| eval: true
+#| label: dharma-results
+#| tbl-cap: Summary of Dharma residual tests for nbinom1
+if (exists("nb1_models") && length(nb1_models) > 0) {
+  nb1_dharma_results <- process_dharma_results(nb1_models)
+
+  kable(nb1_dharma_results$summary)
+}
+
+```
+
+### Zero-inflated Negative Binomial Polynomial Models
+
+```{r}
+#| eval: true
+#| label: nbinom2 models
+
+nb2_models <- keep_at(
+  nb2_EvsBarm$all_models,
+  filter(bestDist_filtered, dist == "nb2")$outcome_id
+)
+
+```
+
+
+```{r}
+#| eval: true
+#| label: nb2-summary
+if (exists("nb2_models") && length(nb2_models) > 0) {
+  nb2_unfit <- diagnoseZI(nb2_models)
+
+  nb2_summary <- data.frame(
+    outcome_id = names(nb2_models),
+    continuous_distribution = "nbinom2",
+    continuous_link = "log",
+    covaraince_structure = "unstructured",
+    zero_distribution = "binary",
+    zero_link = "logit",
+    optimizer = "nlminb"
+  )
+  nb2_ogu_models <- nb2_EvsBarm$adj_results %>%
+    filter(outcome_id %in% names(nb2_models))
+}
+```
+
+Are there any models that fail diagnostics: `r if (exists("nb2_models") && length(nb2_models) > 0) {any(nb2_unfit$pass == FALSE)} else {paste("NA- no models generated by this fit")}`
+
+```{r}
+#| eval: true
+#| label: dharma-results
+#| tbl-cap: Summary of Dharma residual tests for nbinom1
+if (exists("nb2_models") && length(nb2_models) > 0) {
+  nb2_dharma_results <- process_dharma_results(nb2_models)
+
+  kable(nb2_dharma_results$summary)
+}
+```
+
+### Zero-inflated Poisson Models
+
+```{r}
+#| eval: true
+#| label: poi models
+
+poi_models <- keep_at(
+  poi_EvsBarm$all_models,
+  filter(bestDist_filtered, dist == "poi")$outcome_id
+)
+
+```
+
+```{r}
+#| eval: true
+#| label: poi-summary
+if (exists("poi_models") && length(poi_models) > 0) {
+  poi_unfit <- diagnoseZI(poi_models)
+
+  poi_summary <- data.frame(
+    outcome_id = names(poi_models),
+    continuous_distribution = "poisson",
+    continuous_link = "log",
+    covaraince_structure = "unstructured",
+    zero_distribution = "binary",
+    zero_link = "logit",
+    optimizer = "nlminb"
+  )
+  poi_ogu_models <- poi_EvsBarm$adj_results %>%
+    filter(outcome_id %in% names(poi_models))
+}
+```
+
+Are there any models that fail diagnostics: `r if (exists("poi_models") && length(poi_models) > 0) {any(poi_unfit$pass == FALSE)} else {paste("NA- no models generated by this fit")}`
+
+```{r}
+#| eval: true
+#| label: dharma-results
+#| tbl-cap: Summary of Dharma residual tests for Poisson models
+if (exists("poi_models") && length(poi_models) > 0) {
+  poi_dharma_results <- process_dharma_results(poi_models)
+
+  kable(poi_dharma_results$summary)
+}
+```
+
+### Zero-inflated Gaussian Models
+
+```{r}
+#| eval: true
+#| label: gau unfit models
+gau_models <- keep_at(
+  gau_EvsBarm$all_models,
+  filter(bestDist_filtered, dist == "gau")$outcome_id
+)
+
+```
+
+```{r}
+#| eval: true
+#| label: gau-summary
+if (exists("gau_models") && length(gau_models) > 0) {
+  gau_unfit <- diagnoseZI(gau_models)
+
+  gau_summary <- data.frame(
+    outcome_id = names(gau_models),
+    continuous_distribution = "gaussian",
+    continuous_link = "log",
+    covaraince_structure = "unstructured",
+    zero_distribution = "binary",
+    zero_link = "logit",
+    optimizer = "nlminb"
+  )
+  gau_ogu_models <- gau_EvsBarm$adj_results %>%
+    filter(outcome_id %in% names(gau_models))
+}
+```
+
+Are there any models that fail diagnostics: `r if (exists("gau_models") && length(gau_models) > 0) {any(gau_unfit$pass == FALSE)} else {paste("NA- no models generated by this fit")}`
+
+```{r}
+#| eval: true
+#| label: dharma-results
+#| tbl-cap: Summary of Dharma residual tests for Poisson models
+if (exists("gau_models") && length(gau_models) > 0) {
+  gau_dharma_results <- process_dharma_results(gau_models)
+
+  kable(gau_dharma_results$summary)
+}
+```
+
+### Zero-inflated Lognormal Models
+
+```{r}
+#| eval: true
+#| label: lognorm unfit models
+
+lognorm_models <- keep_at(
+  lognorm_EvsBarm$all_models,
+  filter(bestDist_filtered, dist == "lognorm")$outcome_id
+)
+
+```
+
+```{r}
+#| eval: true
+#| label: lognorm-summary
+if (exists("lognorm_models") && length(lognorm_models) > 0) {
+  lognorm_unfit <- diagnoseZI(gau_models)
+
+  lognorm_summary <- data.frame(
+    outcome_id = names(lognorm_models),
+    continuous_distribution = "Log normal",
+    continuous_link = "log",
+    covaraince_structure = "unstructured",
+    zero_distribution = "binary",
+    zero_link = "logit",
+    optimizer = "nlminb"
+  )
+  lognorm_ogu_models <- lognorm_EvsBarm$adj_results %>%
+    filter(outcome_id %in% names(lognorm_models))
+}
+```
+
+```{r}
+#| eval: true
+#| label: dharma-results
+#| tbl-cap: Summary of Dharma residual tests for Poisson models
+if (exists("lognorm_models") && length(lognorm_models) > 0) {
+  lognorm_dharma_results <- process_dharma_results(lognorm_models)
+
+  kable(lognorm_dharma_results$summary)
+}
+```
+
+### Save Final Model Fits
+
+```{r}
+#| eval: false
+#| label: save
+#| echo: false
+
+save(
+  nb1_models,
+  nb2_models,
+  poi_models,
+  gau_models,
+  lognorm_models,
+  file = file.path(filepath, paste0(prefix, "finalised-fits.RData"))
+)
+```
+
+```{r}
+#| eval: true
+#| label: load
+#| echo: false
+
+load(file.path(filepath, paste0(prefix, "finalised-fits.RData")))
+
+```
+
+## Significant LMM OGUs
+
+```{r}
+#| eval: true
+#| label: tbl-summary
+#| tbl-cap: Summary table of OGUs successfully fit by a model, and their corresponding coefficient p-values
+
+poi_summary <- left_join(poi_summary, poi_ogu_models)
+nb1_summary <- left_join(nb1_summary, nb1_ogu_models)
+nb2_summary <- left_join(nb2_summary, nb2_ogu_models)
+gau_summary <- left_join(gau_summary, gau_ogu_models)
+
+
+summary <- rbind(nb1_summary, nb2_summary, poi_summary, gau_summary)
+kable(head(summary))
+```
+
+```{r}
+#| eval: true
+#| label: save-tbl-summary
+#| echo: false
+tmp <- summary %>%
+  left_join(rownames_to_column(data$taxa_data, "outcome_id"), by = "outcome_id")
+
+save_and_link(
+  data = tmp,
+  filename = paste0(prefix, "zero-inflated-ogu-fitted-model-pvalues.csv"),
+  description = "Summary table of OGUs successfully fit by a model",
+  directory_naming = "both"
+)
+
+# write.csv(
+#   summary,
+#   file.path(filepath, paste0(prefix, "zero-inflated-ogu-model-pvalues.csv")),
+#   row.names = FALSE
+# )
+```
+
+Of the `r ncol(outcome)` OGUs that passed filtering (`r ncol(outcome)/ncol(data$ogu_data)`), `r nrow(summary)` were sucessfully fit to a zero-inflated model (`r nrow(summary)/ncol(outcome)*100`%)
+
+```{r}
+#| eval: true
+#| label: zi-sig
+
+ziSig <- identify_significant_ogus(
+  summary,
+  data$taxa_data
+)
+
+colnames(ziSig)[colnames(ziSig) == "rowname"] <- "outcome_id"
+```
+
+### Average abundance changes
+
+```{r}
+#| eval: true
+#| label: tbl-average-sig-changes
+
+aveChange <- joined_data %>%
+  dplyr::filter(outcome_id %in% ziSig$outcome_id) %>%
+  group_by(outcome_id, timepoint) %>%
+  summarise(average_count = mean(value)) %>%
+  pivot_wider(
+    names_from = timepoint,
+    values_from = average_count,
+    values_fill = NA
+  ) %>%
+  mutate(EvsB = Endpoint - Baseline) %>%
+  mutate(
+    difference = case_when(
+      EvsB < 0 ~ "Decrease",
+      EvsB > 0 ~ "Increase",
+      EvsB == 0 ~ "None",
+      TRUE ~ NA
+    )
+  )
+
+aveChange %>%
+  group_by(difference) %>%
+  summarise(total = n()) %>%
+  kable()
+```
+
+### Save Significant Model Results
+
+```{r}
+#| eval: true
+#| results: asis
+
+save_and_link(
+  data = ziSig,
+  filename = paste0(
+    prefix,
+    "zero-inflated-ogu-fitted-model-significant-pvalues.csv"
+  ),
+  description = "Significant OGUs based on ZI-GLMMs",
+  directory_naming = "both"
+)
+
+# write.csv(
+#   ziSig,
+#   file.path(
+#     filepath,
+#     paste0(prefix, "zero-inflated-ogu-fitted-model-significant-pvalues.csv")
+#   ),
+#   row.names = FALSE
+# )
+```
+
+## Zero-inflated component
+
+```{r}
+#| eval: true
+#| label: zi-comp
+#| fig-cap: NA
+#| tbl-cap: NA
+
+zi <- lapply(
+  list(nb1_models, nb2_models, poi_models, gau_models),
+  function(l) {
+    lapply(l, function(x) {
+      summary(x)$coefficients$zi[, 4]
+    })
+  }
+)
+
+#FIX make naming automatic using indexing
+zip <- bind_rows(
+  lapply(zi, function(model_type) {
+    bind_rows(model_type, .id = "outcome_id")
+  }),
+  .id = "model_type"
+) %>%
+  # Add better names for model types
+  mutate(
+    model_type = case_when(
+      model_type == "1" ~ "nb1",
+      model_type == "2" ~ "nb2",
+      model_type == "3" ~ "poi",
+      model_type == "4" ~ "gau",
+      TRUE ~ model_type
+    )
+  )
+
+if (any(zip <= 0.05)) {
+  zip_sig <- identify_significant_ogus(zip, data$taxa_data)
+}
+
+save_and_link(
+  data = zip_sig,
+  filename = paste0(
+    prefix,
+    "significant-ogus-zero-inflated-model-ZI-component.csv"
+  ),
+  description = "Significant OGUs based on ZI-GLMMs (zero-inflated compponent)",
+  directory_naming = "both"
+)
+
+# write.csv(
+#   zip_sig,
+#   file.path(
+#     filepath,
+#     paste0(prefix, "significant-ogus-zero-inflated-model-ZI-component.csv")
+#   ),
+#   row.names = FALSE
+# )
+```
+
+## Using EMMEANS to determine significant changes in taxa abundances
+
+```{r fits}
+#| eval: true
+#| label: fit-mods
+
+fits <- list(nb1_models, nb2_models, poi_models, gau_models)
+
+fits <- list_c(fits)
+```
+
+```{r}
+#| eval: true
+#| label: save-fits
+
+save_and_link(
+  data = fits,
+  filename = paste0(
+    prefix,
+    "zero-inflated-ogu-fitted-model-fits-variable.rds"
+  ),
+  description = "RDS file for `fits` variable",
+  directory_naming = "both"
+)
+```
+
+### Conditional Model EMMs
+
+#### Overall OGUs Estimated marginal means
+
+The below estimates the mean for each `arm` at each `timepoint`, controlling for age at baseline
+
+```{r emm}
+#| eval: true
+#| label: Estimated marginal means for OGU abundances within each intervention arm
+
+emm <- lapply(fits, function(x) {
+  # Get EMMs for arm at each time point
+  emm <- emmeans(
+    x,
+    ~ arm | time,
+    at = list(time = c(0, 1)),
+    weights = "proportional",
+    type = "scale"
+  )
+
+  levels(emm)$time <- c("Baseline", "Endpoint")
+  levels(emm)$arm <- c("CPM", "FeZnPM")
+
+  return(emm)
+})
+```
+
+#### OGU EMM differences between intervention arm at baseline and endpoint
+
+```{r}
+#| eval: true
+#| label: tbl-emm-pairs
+#| tbl-cap: Comparison of abundance marginal mean estimates (EMMs) betweeen intervention arm at baseline and endpoint. Only those with p $\leq$ 0.05 are show for brevity.
+
+emm_pairs <- lapply(emm, function(x) {
+  contrast(
+    x,
+    by = c("time"),
+    method = "revpairwise",
+    type = "scale",
+    weights = "proportional",
+    adjust = "fdr"
+  )
+})
+
+emm_pairs_df <- emm_bind(emm_pairs, kable = F)
+
+(sigArms <- emm_pairs_df %>%
+  filter(p.value <= 0.05) %>%
+  left_join(rownames_to_column(data$taxa_data, "Model"), by = "Model") %>%
+  mutate(
+    change = ifelse(estimate < 0, "Decrease", "Increase"),
+    timepoint = time
+  ))
+```
+
+##### Effect Size
+
+The default value used to standardise the effect size is the model's residual standard deviation (sigma; within-group variation). However, this may underestimate effect sizes in mixed models where combined variance may be more accurate. Here, the random effect variance is used to standardise effect sizes.
+
+```{r}
+#| eval: true
+#| label: sigArm-eff
+#| tbl-cap: Effect sizes calculated as a standardized mean difference similar to Cohen's d.
+
+emmEff <- lapply(1:length(emm_pairs), function(i) {
+  eff_size(
+    emm_pairs[[i]],
+    sigma = attr(VarCorr(fits[[i]])$cond$subject, "stddev") * sqrt(2),
+    edf = df.residual(fits[[i]]),
+    method = "identity",
+    parens = FALSE,
+    adjust = "fdr"
+  )
+})
+
+names(emmEff) <- names(emm_pairs)
+
+emmEff_df <- emm_bind(emmEff, kable = F)
+
+emmEff_df <- emmEff_df %>%
+  filter(Model %in% sigArms$Model) %>%
+  mutate(
+    magnitude = case_when(
+      abs(effect.size) < 0.2 ~ "negligible",
+      abs(effect.size) >= 0.2 & abs(effect.size) < 0.5 ~ "small",
+      abs(effect.size) >= 0.5 & abs(effect.size) < 0.8 ~ "medium",
+      abs(effect.size) >= 0.8 ~ "large",
+    ),
+    lower.CL = ifelse(is.na(lower.CL), asymp.LCL, lower.CL),
+    upper.CL = ifelse(is.na(upper.CL), asymp.UCL, upper.CL)
+  ) %>%
+  arrange(abs(effect.size)) %>%
+  select(Model, time, effect.size, magnitude) %>%
+  mutate_at(vars(everything()), type.convert, as.is = T)
+
+sigArmsEff <- left_join(sigArms, emmEff_df, by = c("Model", "time"))
+```
+
+```{r}
+#| eval: true
+#| label: fig-phyla-emms-effsize
+#| fig-cap: Estimated marginal mean differences between intervention arms at baseline and endpoint. Significant differences with an effect size > 0.5 (medium effect size) are shown in the plot.
+
+plotPhylaEMMs(sigArmsEff) +
+  facet_wrap(~timepoint, scales = "free")
+```
+
+```{r}
+#| eval: true
+#| label: tbl-common-arm-EB
+#| tbl-cap: Common OGUs at baseline and endpoint that have significanlty different marginal means between intervetion arms
+
+common <- sigArmsEff %>%
+  group_by(Model) %>%
+  summarize(n = n_distinct(time)) %>%
+  filter(n > 1) %>%
+  pull(Model)
+
+sigArmsEff %>%
+  filter(Model %in% common) %>%
+  mutate(Species = ifelse(Species == "", Genus, Species)) %>%
+  select(Model, timepoint, Phylum, Species, change, magnitude) %>%
+  kable()
+```
+
+#### Rate of OGU EMM changes over time within each intervention arm
+
+```{r}
+#| eval: true
+#| label: tbl-emm-arm-trend
+#| tbl-cap: Rate of change per unit increase of abundance marginal mean estimates over time. The time.trend column represents the slope of the relationship with time.
+trend <- lapply(fits, function(x) {
+  emm <- emtrends(
+    x,
+    ~arm,
+    var = "time",
+    weights = "proportional",
+    type = "scale"
+  )
+
+  levels(emm)$arm <- c("CPM", "FeZnPM")
+
+  return(emm)
+})
+```
+
+```{r}
+#| eval: true
+#| label: tbl-emm-arm-trend-compare
+#| tbl-cap: Comparison of the rates of change from baseline to endpoint in abundance EMMs between intervention arms.
+
+slopes <- lapply(trend, function(x) {
+  contrast(
+    x,
+    method = "revpairwise",
+    type = "scale",
+    weights = "proportional",
+    adjust = "fdr"
+  )
+})
+
+slopes_df <- emm_bind(slopes, kable = F)
+
+sigArmsTime <- slopes_df %>%
+  filter(p.value <= 0.05) %>%
+  left_join(rownames_to_column(data$taxa_data, "Model"), by = "Model")
+```
+
+##### Effect Size
+
+The default value used to standardise the effect size is the model's residual standard deviation (sigma; within-group variation). However, this may underestimate effect sizes in mixed models where combined variance may be more accurate. Here, the random effect variance is used to standardise effect sizes.
+
+```{r}
+#| eval: true
+#| label: sigArm-eff
+#| fig-cap: NA
+#| tbl-cap: Effect sizes calculated as a standardized mean difference similar to Cohen's d.
+
+emmEff <- lapply(1:length(slopes), function(i) {
+  eff_size(
+    slopes[[i]],
+    sigma = attr(VarCorr(fits[[i]])$cond$subject, "stddev") * sqrt(2),
+    edf = df.residual(fits[[i]]),
+    method = "identity",
+    parens = FALSE,
+    adjust = "fdr"
+  )
+})
+
+names(emmEff) <- names(slopes)
+
+emmEff_df <- emm_bind(emmEff, kable = F)
+
+emmEff_df <- emmEff_df %>%
+  filter(Model %in% sigArmsTime$Model) %>%
+  mutate(
+    magnitude = case_when(
+      abs(effect.size) < 0.2 ~ "negligible",
+      abs(effect.size) >= 0.2 & abs(effect.size) < 0.5 ~ "small",
+      abs(effect.size) >= 0.5 & abs(effect.size) < 0.8 ~ "medium",
+      abs(effect.size) >= 0.8 ~ "large",
+    ),
+    lower.CL = ifelse(is.na(lower.CL), asymp.LCL, lower.CL),
+    upper.CL = ifelse(is.na(upper.CL), asymp.UCL, upper.CL)
+  ) %>%
+  arrange(abs(effect.size)) %>%
+  select(Model, contrast, effect.size, magnitude) %>%
+  mutate_at(vars(everything()), type.convert, as.is = T)
+
+sigArmsTimeEff <- left_join(sigArmsTime, emmEff_df, by = c("Model", "contrast"))
+
+```
+
+```{r}
+#| eval: true
+#| label: fig-phyla-emms-effsize
+#| fig-cap: Rate of change in estimated marginal means between intervention arms. Significant differences with an effect size > 0.5 (medium effect size) are shown in the plot.
+
+plotPhylaEMMs(filter(sigArmsTimeEff, effect.size >= 0.5), highlight_common = F)
+```
+
+### Zero-inflated Componet EMMs
+
+```{r}
+#| eval: true
+#| label: tbl-emms
+#| tbl-cap: Estimated marginal means for OGU abundances within each intervention arm
+
+emm_zi <- lapply(fits, function(x) {
+  # Get EMMs for arm at each time point
+
+  emm <- emmeans(
+    x,
+    ~ arm | time,
+    at = list(time = c(0, 1)),
+    weights = "proportional",
+    type = "scale",
+    component = "zi"
+  )
+
+  levels(emm)$time <- c("Baseline", "Endpoint")
+  levels(emm)$arm <- c("CPM", "FeZnPM")
+
+  return(emm)
+})
+
+# Convert to probability scale
+zi_probs <- lapply(emm_zi, regrid, transform = "logit")
+```
+
+#### OGU EMM differences between intervention arm at baseline and endpoint
+
+```{r}
+#| eval: true
+#| label: tbl-emm-pairs
+#| tbl-cap: Comparison of abundance marginal mean estimates (EMMs) betweeen intervention arm at baseline and endpoint
+
+emm_zi_pairs <- lapply(
+  emm_zi,
+  pairs,
+  reverse = TRUE,
+  by = c("time"),
+  weights = "proportional",
+  type = "scale",
+  ,
+  adjust = "fdr"
+)
+
+emm_zi_pairs_df <- emm_bind(emm_zi_pairs, kable = F)
+
+ZIsigArms <- emm_zi_pairs_df %>%
+  filter(p.value <= 0.05) %>%
+  left_join(rownames_to_column(data$taxa_data, "Model"), by = "Model") %>%
+  mutate(
+    change = ifelse(estimate < 0, "Decrease", "Increase"),
+    timepoint = time
+  )
+```
+
+##### Effect Size
+
+> [!quote]
+> When a logistic regression is calculated, the regression coefficient (b1) is the estimated increase in the log odds of the outcome per unit increase in the value of the exposure. In other words, the exponential function of the regression coefficient (eb1) is the odds ratio associated with a one-unit increase in the exposure. [@Szumilas2010]
+
+i.e. if $\beta_x = log(odds)$, then the odds ratio is $OR = \exp(\beta_x) = e^{\beta_x}$
+
+The "nonexposure" group in this context would be the CPM group
+
+```{r}
+#| eval: true
+#| label: odds-ratio
+#| tbl-cap: Effect size calculated as odds-ratio and converted to Cohen's d with respect to the rate of the desired outcome for zero-inflation component
+
+oddsEff <- Map(summarize_zi_contrasts, emm_zi, emm_zi_pairs, fits)
+
+oddsEff <- data.table::rbindlist(oddsEff, idcol = "Model") %>%
+  select(
+    Model,
+    contrast,
+    time,
+    OR,
+    OR_lower,
+    OR_upper,
+    P0,
+    cohens_d,
+    OR_magnitude
+  )
+```
+
+```{r}
+#| eval: true
+#| label: cohens-d
+#| fig-cap: NA
+#| tbl-cap: NA
+ZIemmEff <- lapply(1:length(emm_zi_pairs), function(i) {
+  eff_size(
+    emm_zi_pairs[[i]],
+    sigma = attr(VarCorr(fits[[i]])$cond$subject, "stddev") * sqrt(2),
+    edf = df.residual(fits[[i]]),
+    method = "identity",
+    parens = FALSE,
+    ratios = TRUE,
+    adjust = "fdr"
+  )
+})
+
+names(ZIemmEff) <- names(emm_zi_pairs)
+
+ZIemmEff <- emm_bind(ZIemmEff, kable = F)
+
+ZIemmEff <- ZIemmEff %>%
+  filter(Model %in% ZIsigArms$Model) %>%
+  mutate(
+    magnitude = case_when(
+      abs(effect.size) < 0.2 ~ "negligible",
+      abs(effect.size) >= 0.2 & abs(effect.size) < 0.5 ~ "small",
+      abs(effect.size) >= 0.5 & abs(effect.size) < 0.8 ~ "medium",
+      abs(effect.size) >= 0.8 ~ "large",
+    )
+  ) %>%
+  arrange(abs(effect.size)) %>%
+  select(Model, time, contrast, effect.size, magnitude) %>%
+  mutate_at(vars(everything()), type.convert, as.is = T)
+
+ZIsigArmsEff <- left_join(
+  ZIsigArms,
+  ZIemmEff,
+  by = c("Model", "time", "contrast")
+)
+
+kable(
+  ZIsigArmsEff <- left_join(
+    ZIsigArmsEff,
+    oddsEff,
+    by = c("Model", "time", "contrast")
+  ) %>%
+    select(!c(Kingdom, Class, Order, Family, time))
+)
+
+if (!all(ZIsigArmsEff$magnitude == ZIsigArmsEff$OR_magnitude)) {
+  echo("Warning: Effect size and odds ratio magnitudes do not match")
+}
+```
+
+```{r}
+#| eval: true
+#| label: fig-phyla-emms-effsize
+#| fig-cap: Estimated marginal mean differences between intervention arms at baseline and endpoint. Significant differences with an effect size > 0.5 (medium effect size) are shown in the plot.
+
+plotPhylaEMMs(ZIsigArmsEff, text_size = 12) +
+  facet_wrap(~timepoint, scales = "free")
+```
+
+#### Rates of OGU abundace changes over time within each intervention arm
+
+```{r}
+#| eval: true
+#| label: tbl-emm-arm-trend
+#| tbl-cap: Rate of change per unit increase of abundance marginal mean estimates over time. The time.trend column represents the slope of the relationship with time.
+
+trend_zi <- lapply(fits, function(x) {
+  emm <- emtrends(
+    x,
+    ~arm,
+    var = "time",
+    weights = "proportional",
+    type = "scale"
+  )
+
+  levels(emm)$arm <- c("CPM", "FeZnPM")
+
+  return(emm)
+})
+```
+
+```{r}
+#| eval: true
+#| label: tbl-emm-arm-trend-compare
+#| tbl-cap: Comparison of the rates of change from baseline to endpoint in abundance EMMs between intervention arms.
+
+slopes_zi <- lapply(trend_zi, function(x) {
+  contrast(
+    x,
+    method = "revpairwise",
+    type = "scale",
+    weights = "proportional",
+    adjust = "fdr"
+  )
+})
+
+slopes_zi_df <- emm_bind(slopes_zi, kable = F)
+
+ZIsigArmsTime <- slopes_zi_df %>%
+  filter(p.value <= 0.05) %>%
+  left_join(rownames_to_column(data$taxa_data, "Model"), by = "Model")
+```
+
+##### Effect Size
+
+The default value used to standardise the effect size is the model's residual standard deviation (sigma; within-group variation). However, this may underestimate effect sizes in mixed models where combined variance may be more accurate. Here, the random effect variance is used to standardise effect sizes.
+
+```{r}
+#| eval: true
+#| label: sigArm-eff
+#| fig-cap: NA
+#| tbl-cap: Effect sizes calculated as a standardized mean difference similar to Cohen's d.
+
+emmEff_zi <- lapply(1:length(slopes_zi), function(i) {
+  eff_size(
+    slopes[[i]],
+    sigma = attr(VarCorr(fits[[i]])$zi$subject, "stddev") * sqrt(2),
+    edf = df.residual(fits[[i]]),
+    method = "identity",
+    parens = FALSE,
+    adjust = "fdr"
+  )
+})
+
+names(emmEff_zi) <- names(slopes_zi)
+
+emmEff_zi_df <- emm_bind(emmEff_zi, kable = F)
+
+emmEff_zi_df <- emmEff_df_zi %>%
+  filter(Model %in% ZIsigArmsTime$Model) %>%
+  mutate(
+    magnitude = case_when(
+      abs(effect.size) < 0.2 ~ "negligible",
+      abs(effect.size) >= 0.2 & abs(effect.size) < 0.5 ~ "small",
+      abs(effect.size) >= 0.5 & abs(effect.size) < 0.8 ~ "medium",
+      abs(effect.size) >= 0.8 ~ "large",
+    )
+  ) %>%
+  arrange(abs(effect.size)) %>%
+  select(Model, contrast, effect.size, magnitude) %>%
+  mutate_at(vars(everything()), type.convert, as.is = T)
+
+ZIsigArmsTimeEff <- left_join(
+  ZIsigArmsTime,
+  emmEff_zi_df,
+  by = c("Model", "contrast")
+)
+
+```
+
+```{r}
+#| eval: true
+#| label: fig-phyla-emms-effsize
+#| fig-cap: Estimated marginal mean differences between intervention arms at baseline and endpoint.
+
+plotPhylaEMMs(
+  filter(ZIsigArmsTimeEff, effect.size >= 0.5),
+  highlight_common = FALSE
+)
+```
+
+## Appendix
+### Note on applying Structured Covariance Matricies to Zero-inflated data
+
+Structured covariance matricies are typically avoided when the data is sparse, zero-inflated or have few repeated measures available. See notes on "Approaches to Modelling Covariance".
+
+### Demonstrating the importance of random effects
+
+OGU G012221805 has an average abundance change of zero, so why is the EvsB term significant? Random effects!
+
+```{r}
+#| eval: true
+#| label: fig-indv-changes
+#| fig-cap: Changes in count abundance for OGU G012221805, showing the clear impact of individual random effects and the importance of including such in a model. Note the black dotted line would be the standard regression line indicating no change over time.
+
+joined_data %>%
+  filter(outcome_id == "G012221805") %>%
+  group_by(subject) %>%
+  ggplot(aes(x = time, y = value, )) +
+  geom_point() +
+  geom_line(
+    aes(
+      group = subject,
+      col = as.factor(arm)
+    ),
+    linewidth = 1
+  ) +
+  geom_smooth(
+    method = "lm",
+    se = F,
+    color = "black",
+    formula = y ~ x,
+    linetype = 'dotted',
+    linewidth = 3
+  ) +
+  xlab("Time Since Feed Start (days)") +
+  ylab("Count") +
+  scale_color_manual(values = armColours) +
+  labs(color = "Intervention Arm")
+
+```
+
+### Individual abundance changes in Signficant OGUs
+
+```{r}
+#| eval: true
+#| label: tmp
+#| collapse: true
+#| tbl-cap: Individual abundance changes for each OGU deemed significant by ZI models
+
+tmp <- joined_data %>%
+  dplyr::filter(outcome_id %in% ziSig$outcome_id) %>%
+  group_by(sample, outcome_id) %>%
+  pivot_wider(
+    names_from = timepoint,
+    values_from = value,
+    values_fill = 0
+  ) %>%
+  mutate(EvsB = Endpoint - Baseline) %>%
+  mutate(
+    difference = case_when(
+      EvsB < 0 ~ "Decrease",
+      EvsB > 0 ~ "Increase",
+      EvsB == 0 ~ "None",
+      TRUE ~ NA
+    )
+  )
+
+tmp %>%
+  group_by(outcome_id, difference) %>%
+  summarise(total = n()) %>%
+  kable()
+```
+
+## Results Summary
+```{r}
+#| eval: true
+#| echo: false
+#| results: asis
+
+list_all_results()
+```
+
+```{r}
+#| results: asis
+generate_results_section(directory_naming = "both")
+```
