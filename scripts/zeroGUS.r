@@ -1327,6 +1327,8 @@ print_zero_summary <- function(zprop_data) {
 #'
 #' @export
 process_dharma_diagnostics <- function(model, outcome_id) {
+  require(DHARMa)
+  
   if (is.null(model)) {
     return(data.frame(
       outcome_id = outcome_id,
@@ -1465,6 +1467,9 @@ process_dharma_diagnostics <- function(model, outcome_id) {
 #'
 #' @export
 process_dharma_results <- function(results) {
+  
+  require(DHARMa)
+  
   # Process all models
   all_diagnostics <- lapply(seq_along(results), function(i) {
     process_dharma_diagnostics(
