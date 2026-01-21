@@ -4,6 +4,7 @@
 #| echo: false
 #| eval: true
 #| label: setup
+#| cache: false
 suppressWarnings(suppressMessages({
   source(normalizePath("utils/r-utils.r"))
   source(normalizePath("_environment.required"))
@@ -175,23 +176,145 @@ save_and_link(
 
 ```{r}
 #| eval: true
-#| label: fig-end
-#| fig-cap: Differentially abundant taxa in the FeZnPM intervention group at Endpoint. Significant taxa were determined to be so if they had a FDR adjusted p-value $\leq$ 0.05 and a fold change of 2 or more
+#| label: endFiltered
 
 endFiltered <- end_prim %>%
   select(taxon, ends_with("_armFeZnPM")) %>%
   dplyr::filter(
-    diff_armFeZnPM == TRUE & passed_ss_armFeZnPM == TRUE
+    passed_ss_armFeZnPM == TRUE
   )
+```
+
+`r nrow(endFiltered)` passed ANCOM-BC sensitivity filtering.
+
+```{r}
+#| eval: true
+#| label: tbl-end-summary
+#| tbl-cap: ANCOM-BC significant (FDR) OGU fold changes. All OGUs passed sensitivity filtering.
+
+endFiltered <- endFiltered %>%
+  mutate(
+    Result_FC1.2 = case_when(
+      lfc_armFeZnPM < 0 &
+        q_armFeZnPM <= 0.05 &
+        abs(lfc_armFeZnPM) >= log(1.2) ~
+        "Decrease",
+      lfc_armFeZnPM > 0 &
+        q_armFeZnPM <= 0.05 &
+        abs(lfc_armFeZnPM) >= log(1.2) ~
+        "Increase",
+      TRUE ~ "No change"
+    ),
+    Result_FC2 = case_when(
+      lfc_armFeZnPM < 0 &
+        q_armFeZnPM <= 0.05 &
+        abs(lfc_armFeZnPM) >= log(2) ~
+        "Decrease",
+      lfc_armFeZnPM > 0 &
+        q_armFeZnPM <= 0.05 &
+        abs(lfc_armFeZnPM) >= log(2) ~
+        "Increase",
+      TRUE ~ "No change"
+    )
+  ) %>%
+  inner_join(rownames_to_column(tax_df(end), "taxon"), by = "taxon")
 
 colnames(endFiltered) <- str_remove(colnames(endFiltered), "_armFeZnPM")
 
+kable(
+  endFiltered %>%
+    select(taxon, Result_FC1.2, Result_FC2) %>%
+    pivot_longer(cols = c(Result_FC1.2, Result_FC2)) %>%
+    group_by(name, value) %>%
+    summarise(n = n())
+)
+```
+
+##### Significant OGUs with a Fold Change of 1.2 or more
+
+```{r}
+#| eval: true
+#| label: fig-endArm
+#| fig-cap: Differentially abundant taxa in the FeZnPM intervention group at Endpoint. Significant taxa were determined to be so if they had a FDR adjusted p-value $\leq$ 0.05 and a fold change of 1.2 or more. They must also have passed ANCOM-BC sensitivity filtering.
+
 plotDAvol(
   endFiltered,
-  title = "Differentially abundant OGUs in the FeZnPM intervention group at Baseline",
-  p.fdr = q
+  title = "Differentially abundant OGUs in the FeZnPM intervention group at Endpoint compared to CPM",
+  p.fdr = q,
+  p.threshold = 0.05,
+  lfc.threshold = log(1.2)
+)
+```
+
+```{r}
+#| eval: true
+#| label: fig-sig-endOGUs-1.2
+#| fig-cap: Significant OGUs with a Fold Change of 1.2 or more
+
+phylum_anno <- assign_unique_colors(
+  as.vector(endFiltered$Phylum),
+  phyla_colours
 )
 
+endFiltered %>%
+  filter(Result_FC1.2 != "No change") %>%
+  arrange(lfc) %>%
+  ggplot(aes(y = reorder(Species, lfc), x = lfc, fill = Phylum)) +
+  geom_bar(position = position_dodge(), stat = "identity") +
+  xlab(NULL) +
+  ylab(NULL) + #labels the y axis
+  scale_color_manual(values = phylum_anno, aesthetics = 'fill') +
+  geom_vline(xintercept = 0) +
+  theme(
+    axis.text.x = element_text(
+      angle = 0,
+      size = fontsize,
+      face = 'bold',
+      color = 'black'
+    )
+  )
+```
+
+##### Significant OGUs with a Fold Change of 2 or more
+
+```{r}
+#| eval: true
+#| label: fig-endArm-2
+#| fig-cap: Differentially abundant taxa in the intervention arm, FeZnPM, compared to control (CPM) at Endpoint. Significant taxa were determined to be so if they had a FDR adjusted p-value $\leq$ 0.05 and a fold change of 2 or more. They must also have passed ANCOM-BC sensitivity filtering.
+
+plotDAvol(
+  endFiltered,
+  title = "Differentially abundant taxa in FeZnPM compared CPM",
+  p.fdr = q,
+  p.threshold = 0.05,
+  lfc.threshold = log(2)
+)
+```
+
+```{r}
+#| eval: true
+#| label: fig-sig-endOGUs-2
+#| fig-cap: Significant OGUs with a Fold Change of 2 or more
+
+endFiltered %>%
+  filter(Result_FC2 != "No change") %>%
+  mutate(Species = str_remove_all(Species, "_AD|^Member of|family spp")) %>%
+  arrange(lfc) %>%
+  ggplot(aes(y = reorder(Species, lfc), x = lfc, fill = Phylum)) +
+  geom_bar(position = position_dodge(), stat = "identity") +
+  xlab(NULL) +
+  ylab(NULL) + #labels the y axis
+  scale_color_manual(values = phylum_anno, aesthetics = 'fill') +
+  geom_vline(xintercept = 0) +
+  theme(
+    axis.text.x = element_text(
+      angle = 0,
+      size = fontsize,
+      face = 'bold',
+      color = 'black'
+    ),
+    axis.text.y = element_text(size = 12, face = 'bold', color = 'black')
+  )
 ```
 
 ### Differences in rates of change overtime between intervention arms
@@ -233,43 +356,39 @@ EvsBarmANCOM <- ancombc2(
 EvsBarmANCOM_prim <- EvsBarmANCOM$res
 ```
 
-```{r}
-#| eval: true
-#| label: tbl-summary
-#| tbl-cap: ANCOM-BC significant (FDR) OGU fold changes
-
-EvsBarmANCOM_prim <- EvsBarmANCOM_prim %>%
-  mutate(FC = exp(abs(EvsBarmANCOM_prim$lfc_timepointEndpoint))) %>%
-  mutate(
-    Result_FC1.2 = case_when(
-      lfc_timepointEndpoint < 0 &
-        q_timepointEndpoint <= 0.05 &
-        abs(lfc_timepointEndpoint) >= log(1.2) ~
-        "Decrease",
-      lfc_timepointEndpoint > 0 &
-        q_timepointEndpoint <= 0.05 &
-        abs(lfc_timepointEndpoint) >= log(1.2) ~
-        "Increase",
-      TRUE ~ "No change"
-    ),
-    Result_FC2 = case_when(
-      lfc_timepointEndpoint < 0 &
-        q_timepointEndpoint <= 0.05 &
-        abs(lfc_timepointEndpoint) >= log(2) ~
-        "Decrease",
-      lfc_timepointEndpoint > 0 &
-        q_timepointEndpoint <= 0.05 &
-        abs(lfc_timepointEndpoint) >= log(2) ~
-        "Increase",
-      TRUE ~ "No change"
-    )
-  ) %>%
-  left_join(rownames_to_column(tax_df(absAbund), "taxon"), by = "taxon")
-```
 
 ```{r}
 #| eval: true
 #| results: asis
+EvsBarmANCOM_prim <- EvsBarmANCOM_prim %>%
+  mutate(
+    FC = exp(abs(EvsBarmANCOM_prim$`lfc_timepointEndpoint:armFeZnPM`))
+  ) %>%
+  mutate(
+    Result_FC1.2 = case_when(
+      `lfc_timepointEndpoint:armFeZnPM` < 0 &
+        `q_timepointEndpoint:armFeZnPM` <= 0.05 &
+        abs(`lfc_timepointEndpoint:armFeZnPM`) >= log(1.2) ~
+        "Decrease",
+      `lfc_timepointEndpoint:armFeZnPM` > 0 &
+        `q_timepointEndpoint:armFeZnPM` <= 0.05 &
+        abs(`lfc_timepointEndpoint:armFeZnPM`) >= log(1.2) ~
+        "Increase",
+      TRUE ~ "No change"
+    ),
+    Result_FC2 = case_when(
+      `lfc_timepointEndpoint:armFeZnPM` < 0 &
+        `q_timepointEndpoint:armFeZnPM` <= 0.05 &
+        abs(`lfc_timepointEndpoint:armFeZnPM`) >= log(2) ~
+        "Decrease",
+      `lfc_timepointEndpoint:armFeZnPM` > 0 &
+        `q_timepointEndpoint:armFeZnPM` <= 0.05 &
+        abs(`lfc_timepointEndpoint:armFeZnPM`) >= log(2) ~
+        "Increase",
+      TRUE ~ "No change"
+    )
+  ) %>%
+  inner_join(rownames_to_column(tax_df(absAbund), "taxon"), by = "taxon")
 
 save_and_link(
   data = EvsBarmANCOM_prim,
@@ -290,10 +409,10 @@ tmp <- EvsBarmANCOM_prim %>%
     Family,
     Genus,
     Species,
-    `Loge Fold Change (ANCOM-BC)` = lfc_timepointEndpoint,
+    `Loge Fold Change (ANCOM-BC)` = `lfc_timepointEndpoint:armFeZnPM`,
     `Fold Change (expFC)` = FC,
-    `ANCOM-BC P-value` = p_timepointEndpoint,
-    `ANCOM-BC FDR adjusted p-value` = q_timepointEndpoint,
+    `ANCOM-BC P-value` = `p_timepointEndpoint:armFeZnPM`,
+    `ANCOM-BC FDR adjusted p-value` = `q_timepointEndpoint:armFeZnPM`,
     `Significant Result Fold Change ≥ 1.2` = Result_FC1.2,
     `Significant Result Fold Change ≥ 2` = Result_FC2
   )
@@ -309,6 +428,37 @@ save_and_link(
   filename = paste0(prefix, "ancombc-formatted.csv"),
   description = "ANCOM-BC results comparing DA OGUS between intervention arms over time (rate of change; formatted for publication)",
   directory_naming = "both"
+)
+```
+
+```{r}
+#| eval: true
+#| label: EvsBarm-filtered
+
+EvsBarmANCOMFiltered <- EvsBarmANCOM_prim %>%
+  dplyr::filter(
+    `passed_ss_timepointEndpoint:armFeZnPM` == TRUE
+  )
+
+colnames(EvsBarmANCOMFiltered) <- str_remove(
+  colnames(EvsBarmANCOMFiltered),
+  "_armFeZnPM"
+)
+
+```
+
+`r nrow(EvsBarmANCOMFiltered)` passed ANCOM-BC sensitivity filtering.
+
+```{r}
+#| eval: true
+#| label: tbl-summary
+#| tbl-cap: ANCOM-BC significant (FDR) OGU fold changes. All OGUs passed sensitivity filtering.
+kable(
+  EvsBarmANCOMFiltered %>%
+    select(taxon, Result_FC1.2, Result_FC2) %>%
+    pivot_longer(cols = c(Result_FC1.2, Result_FC2)) %>%
+    group_by(name, value) %>%
+    summarise(n = n())
 )
 ```
 
@@ -338,30 +488,93 @@ Coefficient Interpretations:
 
 :::
 
+### Significant OGUs with a Fold Change of 1.2 or more
 
 ```{r}
 #| eval: true
-#| label: fig-end
-#| fig-cap: Impact of FeZnPM over time compared to CPM. This is the differential treatment effect i.e. the additional change in OGU abundances in the FeZnPM arm at endpoint, beyond what happens in the CPM reference arm. Differentially abundant taxa in the FeZnPM intervention group at Endpoint. Significant taxa were determined to be so if they had a FDR adjusted p-value $\leq$ 0.05 and a fold change of 2 or more
-
-EvsBarmANCOMFiltered <- EvsBarmANCOM_prim %>%
-  select(taxon, ends_with("timepointEndpoint:armFeZnPM")) %>%
-  dplyr::filter(
-    `diff_timepointEndpoint:armFeZnPM` == TRUE &
-      `passed_ss_timepointEndpoint:armFeZnPM` == TRUE
-  )
-
-colnames(EvsBarmANCOMFiltered) <- str_remove(
-  colnames(EvsBarmANCOMFiltered),
-  "_timepointEndpoint:armFeZnPM"
-)
+#| label: fig-EvsBArm
+#| fig-cap: Impact of FeZnPM over time compared to CPM. Differentially abundant taxa in the intervention arm, FeZnPM, compared to control (CPM) at Endpoint. This is the differential treatment effect i.e. the additional change in OGU abundances in the FeZnPM arm at endpoint, beyond what happens in the CPM reference arm. Significant taxa were determined to be so if they had a FDR adjusted p-value $\leq$ 0.05 and a fold change of 1.2 or more. They must also have passed ANCOM-BC sensitivity filtering.
 
 plotDAvol(
   EvsBarmANCOMFiltered,
   title = "OGUs that change at a significantly different rate overtime in the FeZnPM intervention group compared to the rate of change in the CPM group",
-  p.fdr = q
+  p.fdr = q,
+  p.threshold = 0.05,
+  lfc.threshold = log(1.2)
+)
+```
+
+```{r}
+#| eval: true
+#| label: fig-significant-1.2
+#| fig-cap: Significant OGUs with a Fold Change of 1.2 or more
+
+phylum_anno <- assign_unique_colors(
+  as.vector(EvsBarmANCOMFiltered$Phylum),
+  phyla_colours
 )
 
+EvsBarmANCOMFiltered %>%
+  filter(Result_FC1.2 != "No change") %>%
+  mutate(Species = str_remove_all(Species, "_AD|^Member of|family spp")) %>%
+  arrange(lfc) %>%
+  ggplot(aes(y = reorder(Species, lfc), x = lfc, fill = Phylum)) +
+  geom_bar(position = position_dodge(), stat = "identity") +
+  xlab(NULL) +
+  ylab(NULL) + #labels the y axis
+  scale_color_manual(values = phylum_anno, aesthetics = 'fill') +
+  geom_vline(xintercept = 0) +
+  theme(
+    axis.text.x = element_text(
+      angle = 0,
+      size = fontsize,
+      face = 'bold',
+      color = 'black'
+    ),
+    axis.text.y = element_text(size = 12, face = 'bold', color = 'black')
+  )
+```
+
+### Significant OGUs with a Fold Change of 2 or more
+
+```{r}
+#| eval: true
+#| label: fig-endArm
+#| fig-cap: Differentially abundant taxa in the intervention arm, FeZnPM, compared to control (CPM) at Endpoint. Significant taxa were determined to be so if they had a FDR adjusted p-value $\leq$ 0.05 and a fold change of 2 or more. They must also have passed ANCOM-BC sensitivity filtering.
+
+plotDAvol(
+  EvsBarmANCOMFiltered,
+  title = "Differentially abundant taxa in FeZnPM compared CPM",
+  p.fdr = q,
+  p.threshold = 0.05,
+  lfc.threshold = log(2)
+)
+```
+
+```{r}
+#| eval: true
+#| label: fig-significant-2
+#| fig-cap: Significant OGUs with a Fold Change of 2 or more
+
+EvsBarmANCOMFiltered %>%
+  filter(Result_FC2 != "No change") %>%
+  mutate(Species = str_remove_all(Species, "_AD|^Member of|family spp")) %>%
+  arrange(lfc) %>%
+  ggplot(aes(y = reorder(Species, lfc), x = lfc, fill = Phylum)) +
+  geom_bar(position = position_dodge(), stat = "identity") +
+  xlab(NULL) +
+  ylab(NULL) + #labels the y axis
+  scale_color_manual(values = phylum_anno, aesthetics = 'fill') +
+  geom_vline(xintercept = 0) +
+  theme(
+    axis.text.x = element_text(
+      angle = 0,
+      size = fontsize,
+      face = 'bold',
+      color = 'black'
+    ),
+    axis.text.y = element_text(size = 12, face = 'bold', color = 'black')
+  )
 ```
 
 ## Results Summary
