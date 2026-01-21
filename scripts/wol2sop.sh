@@ -39,7 +39,7 @@ function help() {
   Taxonomic analysis:
     --no-tax             skip taxonomic analysis (only infer OGUs)
     --taxlvs             taxonomic ranks to classify to
-                         (default: phylum,class,order,family,genus,species)
+                        (default: phylum,class,order,family,genus,species)
     --taxfmt             taxonomy tree format (taxdump or lineage)
     --taxnrm             normalize read count by genome size (Mbp)
 
