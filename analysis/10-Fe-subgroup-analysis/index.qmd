@@ -29,7 +29,7 @@ Iron deficiency/anaemia diagnostic criteria:
 - serum transferrin receptor
 - calculating the total iron binding capacity
 
-Based on WHO guidelines [@WHO2011; @WHO2024] we define iron status subgroups as follows:
+Based on WHO guidelines [@WHO2011; @WHO2011a; @WHO2024] we define iron status subgroups as follows:
 
 Sub group characteristics:
 
