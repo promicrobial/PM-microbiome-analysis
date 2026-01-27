@@ -635,16 +635,6 @@ save_and_link(
   description = "Baseline zero-inflated OGU model summaries",
   directory_naming = "both"
 )
-
-# write.csv(
-#   summary,
-#   file.path(
-#     RESULTS,
-#     "Baseline-OGU-ZIBR",
-#     "zero-inflated-ogu-model-summaries.csv"
-#   ),
-#   row.names = FALSE
-# )
 ```
 
 Of the `r ncol(outcome)` OGUs that passed filtering (`r ncol(outcome)/ncol(data$ogu_data)`), `r nrow(summary)` were sucessfully fit to a zero-inflated model (`r nrow(summary)/ncol(outcome)*100`%)
@@ -673,16 +663,6 @@ save_and_link(
   description = "Significant OGUs in FeZnPM based on ZI-GLMMs",
   directory_naming = "both"
 )
-
-# write.csv(
-#   ziSig,
-#   file.path(
-#     RESULTS,
-#     "Baseline-OGU-ZIBR",
-#     "significant-ogus-zero-inflated-model.csv"
-#   ),
-#   row.names = FALSE
-# )
 ```
 
 ## Zero-inflated component
@@ -1002,35 +982,6 @@ plotPhylaEMMs(mth12v15zi, highlight_common = FALSE)
 
 plotPhylaEMMs(mth12v18zi, highlight_common = FALSE)
 ```
-
-## Effect of Stunting on OGU Abundances
-
-#TODO
-
-```{r}
-#| eval: false
-#| label: stunt-model
-
-y <- outcome %>% select(names(poi_models))
-
-poi_stunt <- genZI(
-  y,
-  predictors,
-  formula = "age_B",
-  zi = "~ age_B",
-  family = "poisson"
-)
-
-compare_nested_models(list(
-  poi_models = keep_at(poi_baseAge, names(poi_models)),
-  poi_stunt = poi_stunt
-))
-
-```
-
-## Note on applying Structured Covariance Matricies to Zero-inflated data
-
-Structured covariance matrices are typically avoided when the data is sparse, zero-inflated or have few repeated measures available. See notes on "Approaches to Modelling Covariance".
 
 ## Results Summary
 

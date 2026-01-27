@@ -1492,30 +1492,3 @@ generate_results_section(directory_naming = "both")
 
 print(sessionInfo(), locale = FALSE)
 ```
-
-### Effect of Stunting on OGU Abundances
-
-```{r}
-#| eval: false
-#| label: stunt-model
-
-y <- outcome %>% select(names(poi_models))
-
-poi_stunt <- genZI(
-  y,
-  predictors,
-  formula = "time + age_B + age_B:time",
-  zi = "~ age_B * time",
-  family = "poisson"
-)
-
-compare_nested_models(list(
-  poi_models = keep_at(poi_EvsB, names(poi_models)),
-  poi_stunt = poi_stunt
-))
-
-```
-
-### Note on applying Structured Covariance Matricies to Zero-inflated data
-
-Structured covariance matricies are typically avoided when the data is sparse, zero-inflated or have few repeated measures available. See notes on "Approaches to Modelling Covariance".

@@ -945,13 +945,15 @@ emm_pairs <- lapply(emm, function(x) {
 
 emm_pairs_df <- emm_bind(emm_pairs, kable = F)
 
-kable(head(sigArms <- emm_pairs_df %>%
-  dplyr::filter(p.value <= 0.05) %>%
-  left_join(rownames_to_column(data$taxa_data, "Model"), by = "Model") %>%
-  mutate(
-    change = ifelse(estimate < 0, "Decrease", "Increase"),
-    timepoint = time
-  )))
+kable(head(
+  sigArms <- emm_pairs_df %>%
+    dplyr::filter(p.value <= 0.05) %>%
+    left_join(rownames_to_column(data$taxa_data, "Model"), by = "Model") %>%
+    mutate(
+      change = ifelse(estimate < 0, "Decrease", "Increase"),
+      timepoint = time
+    )
+))
 ```
 
 ##### Effect Size
@@ -1083,7 +1085,7 @@ emmEff <- lapply(1:length(slopes), function(i) {
     edf = df.residual(fits[[i]]),
     method = "identity",
     parens = FALSE
-    )
+  )
 })
 
 names(emmEff) <- names(slopes)
@@ -1133,7 +1135,10 @@ save_and_link(
 #| label: fig-phyla-emms-effsize
 #| fig-cap: Rate of change in estimated marginal means between intervention arms. Significant differences with an effect size > 0.5 (medium effect size) are shown in the plot.
 
-plotPhylaEMMs(dplyr::filter(sigArmsTimeEff, abs(effect.size) >= 0.5), highlight_common = F)
+plotPhylaEMMs(
+  dplyr::filter(sigArmsTimeEff, abs(effect.size) >= 0.5),
+  highlight_common = F
+)
 ```
 
 ```{r}
@@ -1150,19 +1155,27 @@ phylum_direction_counts <- df_with_direction %>%
   arrange(desc(n))
 
 # Create the plot with labels
-ggplot(phylum_direction_counts, 
-       aes(x = reorder(Phylum, n), y = n, fill = Direction)) +
+ggplot(
+  phylum_direction_counts,
+  aes(x = reorder(Phylum, n), y = n, fill = Direction)
+) +
   geom_bar(stat = "identity", position = "stack") +
-  geom_text(aes(label = n), 
-            position = position_stack(vjust = 0.5), # Center labels in each segment
-            color = "white",
-            size = 3.5) +
+  geom_text(
+    aes(label = n),
+    position = position_stack(vjust = 0.5), # Center labels in each segment
+    color = "white",
+    size = 3.5
+  ) +
   coord_flip() +
-  scale_fill_manual(values = c("Decrease" = "#E64B35", "Increase" = "#4DBBD5")) +
+  scale_fill_manual(
+    values = c("Decrease" = "#E64B35", "Increase" = "#4DBBD5")
+  ) +
   theme_minimal() +
-  labs(x = "Phylum",
-       y = "Number of OGUs",
-       title = "Distribution of OGUs by Phylum and Direction of Change") +
+  labs(
+    x = "Phylum",
+    y = "Number of OGUs",
+    title = "Distribution of OGUs by Phylum and Direction of Change"
+  ) +
   theme(
     axis.text.y = element_text(size = 10),
     plot.title = element_text(size = 12, face = "bold"),
@@ -1351,7 +1364,7 @@ plotPhylaEMMs(ZIsigArmsEff, text_size = 12) +
 trend_zi <- lapply(fits, function(x) {
   emm <- emtrends(
     x,
-    ~ arm,
+    ~arm,
     var = "time",
     weights = "proportional",
     type = "scale"
@@ -1465,9 +1478,6 @@ generate_results_section(directory_naming = "both")
 
 print(sessionInfo(), locale = FALSE)
 ```
-### Note on applying Structured Covariance Matricies to Zero-inflated data
-
-Structured covariance matricies are typically avoided when the data is sparse, zero-inflated or have few repeated measures available. See notes on "Approaches to Modelling Covariance".
 
 ### Demonstrating the importance of random effects
 
