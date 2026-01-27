@@ -1,5 +1,20 @@
 # Raw Metagenome Quality Control
 
+```{r}
+#| echo: false
+#| eval: true
+#| label: setup
+#| cache: false
+
+# This initial code block loads custom utility functions and environment variables
+# These are stored in separate files to keep the main analysis clean and organized
+
+suppressWarnings(suppressMessages({
+  source(normalizePath("utils/r-utils.r"))
+  source(normalizePath("_environment.required"))
+}))
+```
+
 Analysis begins with running quality control on raw metagenome sequence files. Raw files are trimmed and filtered of adapter sequences and low quality base calls (Phread quality scores $\geq$ 20 i.e. 99% base call accuracy [@Ewing1998]), such as those usually found at the beginning and end of a read.
 
 ## Adapter trimming and read filtering
@@ -52,7 +67,7 @@ multiqc --outdir $MULTIQC_REPORT --title "Basic Metagenome Statistics after fast
 
 Microbiome samples taken from any host will contain varying amounts of host DNA that are amplified during sequencing. Even with pre-sequencing methods such as host DNA depletion, host reads can still create noise in a dataset. *In silico* techniques rely on mapping reads to the host's genome. Sample used in this project are from human rectal swabs. Human read decontamination approaches rely on a single reference genome (typically GRCh38) leading to potential false negatives caused by variant sequences present in diverse human populations. Pangenomes offer the potential to capture some of this diversity.
 
-The following process, inspired by the work of [@Knight2024], uses [PanDora](https://github.com/promicrobial/PanDora), a non-redundant human pangenome reference database containing GRCh38 (NCBI RefSeq GCF_000001405.40), CHM13v2.0 (NCBI RefSeq: GCF_009914755.1), and variant sequences from 94 Human Pangenome Reference Consortium (HPRC) assemblies (available on [GitHub](https://github.com/human-pangenomics/HPP_Year1_Assemblies) or NCBI; PRJNA730823). The database was constructed using [panSieve](https://github.com/promicrobial/panSieve), a tool for extracting unique sequences from pangenome graphs (GFA file format).
+The following process, inspired by the work of [@Guccione2025], uses [PanDora](https://github.com/cpnh/PanDora), a non-redundant human pangenome reference database containing GRCh38 (NCBI RefSeq GCF_000001405.40), CHM13v2.0 (NCBI RefSeq: GCF_009914755.1), and variant sequences from 94 Human Pangenome Reference Consortium (HPRC) assemblies (available on [GitHub](https://github.com/human-pangenomics/HPP_Year1_Assemblies) or NCBI; PRJNA730823). The database was constructed using [panSieve](https://github.com/cpnh/panSieve), a tool for extracting unique sequences from pangenome graphs (GFA file format).
 
 ### Illumina PhiX Spikein Removal
 
@@ -79,11 +94,13 @@ find "$FASTP_OUT" -maxdepth 1 -type f -name "*fastp_R1*" | \
 
 #### Downloading Human Pangenome Reference Database
 
-#TODO
+#TODO add link when available
 
 ```{bash}
 #| eval: false
 #| label: downloading the PanDora database
+
+wget 
 ```
 
 Edit 04-16-25: PanDora can be located on BioHPC at the following path `/local/storage/shared/analyses/ref/pandora/`
@@ -127,4 +144,23 @@ At this point, all samples have been trimmed of adapter sequences, filtered for 
 
 ##### Visualisation of decontaminates removed
 
-#ADD R code here
+```{r}
+#| eval: true
+#| label: load-data
+
+df <- read.delim(
+  file.path(CLEAN_FILE_DIR, "logs/stats.summary"),
+  header = F,
+  col.names = c("file", "remaining_reads", "percent_removed")
+)
+```
+
+```{r}
+#| eval: true
+#| label: fig-hist
+#| fig-cap: Percentage of human DNA contamination removed from metagenome samples.
+
+ggplot(df, aes(x = percent_removed)) +
+  geom_histogram(binwidth = 10, col = "white")
+
+```
