@@ -1,2 +1,6 @@
-#TODO
-REI calculation
+```{bash}
+#| eval: false
+#| label: calc-rei
+
+Rscript scripts/calculate-rei.r --input $WOLTKA_OUT/ogu.tsv $METADATA --output $RARE_RESULTS --group timepoints
+```
