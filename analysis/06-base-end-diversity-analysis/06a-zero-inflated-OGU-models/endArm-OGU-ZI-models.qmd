@@ -67,8 +67,8 @@ predictors <- predictors %>%
 The following distribution families were used to fit a zero-inflated model:
 
 - Poisson
-- Simple negative binomial (linear parameterization) [@Hardin2007]
-- Complex negative binomial (quadratic parameterization) [@Hardin2007]
+- Simple negative binomial (linear parameterization) [@Hardin2018]
+- Complex negative binomial (quadratic parameterization) [@Hardin2018]
 - Gaussian (normal)
 - Log normal
 

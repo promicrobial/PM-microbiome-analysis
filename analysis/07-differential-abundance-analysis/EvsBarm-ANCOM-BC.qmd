@@ -39,7 +39,7 @@ The `ancombc2` function is needed for repeated measures (can be used for cross-s
 :::
 
 ::: {.callout-warning}
-The ANOCOM-BC2 method uses a natural log transformation not a log2 transformation like other DAA methods [@Lin2025].
+The ANOCOM-BC2 method uses a natural log transformation not a log2 transformation like other DAA methods [@Lin2024].
 :::
 
 ### Cross-sectional comparisons

@@ -341,7 +341,7 @@ knitr::kable(
 
 The p-value ($Pr(>F)$) for `r base_counts$samples$arm` is `r pv$p`, which is greater than the conventional significance level of 0.05. This suggests that we cannot reject the null hypothesis, implying that there is no significant overall difference in microbial pathway abundance between baseline and endpoint.
 
-The `plotMDS()` function accepts "any data object that can be coerced to a matrix of log-expression values, for example an ExpressionSet or an EList" [@Gentleman2025]. If the `edgeR::voomLmFit()` function was used the `EList` object can be obtained using `fit$EList`
+The `plotMDS()` function accepts "any data object that can be coerced to a matrix of log-expression values, for example an ExpressionSet or an EList" [@Smyth2025]. If the `edgeR::voomLmFit()` function was used the `EList` object can be obtained using `fit$EList`
 
 ```{r}
 #| eval: true
@@ -548,7 +548,7 @@ knitr::kable(
 
 The p-value ($Pr(>F)$) for `r end_counts$samples$arm` is `r pv$p`, which is greater than the conventional significance level of 0.05. This suggests that we cannot reject the null hypothesis, implying that there is no significant overall difference in microbial pathway abundance between endline and endpoint.
 
-The `plotMDS()` function accepts "any data object that can be coerced to a matrix of log-expression values, for example an ExpressionSet or an EList" [@Gentleman2025]. If the `edgeR::voomLmFit()` function was used the `EList` object can be obtained using `fit$EList`
+The `plotMDS()` function accepts "any data object that can be coerced to a matrix of log-expression values, for example an ExpressionSet or an EList" [@Smyth2025]. If the `edgeR::voomLmFit()` function was used the `EList` object can be obtained using `fit$EList`
 
 ```{r}
 #| eval: true
