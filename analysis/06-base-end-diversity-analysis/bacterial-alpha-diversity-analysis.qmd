@@ -21,7 +21,6 @@ armColours = c("CPM" = "#FC8D62", "FeZnPM" = "#8DA0CB")
 
 ```
 
-
 Load previously rarefied (normalized) bacterial sequence data:
 
 ```{r}
@@ -103,7 +102,6 @@ write.csv(
 )
 ```
 
-
 #### Bacterial Relative Abundances
 
 Relative abundances are calculated to show the proportion of each bacterial group in a sample.
@@ -182,7 +180,6 @@ p <- amp_boxplot(
 p + geom_jitter(color = "black", size = 1.5, stat = "identity", width = 0.35)
 ```
 
-
 #### Calulation of Baseline and Endpoint Alpha Diversity Statistics
 
 Multiple diversity metrics were calculated for each sample to capture different aspects of community structure:
@@ -232,7 +229,6 @@ rownames(bac_base_end_meta) <- bac_base_end_meta$sample_names
 #update metadata table
 sample_data(bac_base_end) <- bac_base_end_meta
 sample_data(absAbund) <- bac_base_end_meta
-
 ```
 
 ```{r}
@@ -258,7 +254,6 @@ dfB_E.stats <-
     names_to = "diversity_metric"
   ) %>%
   group_by(displayid)
-
 ```
 
 ```{r}
@@ -352,7 +347,6 @@ dfB_E.stats %>%
     axis.text.x = element_text(angle = 0, hjust = 0.5, vjust = 1),
     strip.text = element_text(size = 14, face = 'bold', color = 'black')
   )
-
 ```
 
 ##### Alpha Diveristy Summary Table
@@ -472,14 +466,11 @@ htmltools::save_html(
   gt::as_raw_html(p),
   file.path(RESULTS, "base-end-diversity-analysis", "base-end-alpha-div.tbl")
 )
-
 ```
 
 ```{r}
 #| eval: true
-#| label: tbl-time-wilco
-#| fig-cap: NA
-#| tbl-cap: NA
+#| label: tbl-time-wilcox
 
 p <- bac_base_end_meta %>%
   dplyr::select(
@@ -502,7 +493,6 @@ pl <- p %>%
     names_to = "diversity_metric"
   ) %>%
   group_by(displayid)
-
 ```
 
 ```{r}
@@ -552,7 +542,6 @@ pl %>%
   # filter(p.adj <= 0.05) %>%
   kable()
 ```
-
 
 ```{r}
 #| eval: true
@@ -1499,7 +1488,6 @@ alpha_lmms_transformed2 <- list(
 )
 ```
 
-\  
 One of the assumptions of random intercept/slope models is that the random errors (residuals) are independant and normally distributed
 
 ```{r}
@@ -1540,8 +1528,6 @@ lapply(alpha_lmms_transformed2, model_stats)
 lapply(lapply(alpha_lmms_transformed2, anova), knitr::kable)
 ```
 
-\blandscape
-
 ```{r}
 #| eval:  true
 #| label: model compaison stargazer table2
@@ -1555,8 +1541,6 @@ stargazer::stargazer(
   type = "html"
 )
 ```
-
-\elandscape
 
 ```{r}
 #| eval: true
