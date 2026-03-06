@@ -14,6 +14,8 @@ This repository contains the analysis pipeline for a randomized controlled feedi
 
 ## Analysis overview
 
+Analysis was conducted in R 4.4.2 and package requirements and versions are available in the renv.lock file.
+
 - Quality control and preprocessing of metagenomic data
 - Classification by alignment to WoL2 reference phylogeny
 - Diversity analyses (alpha and beta)
