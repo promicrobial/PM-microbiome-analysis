@@ -26,12 +26,12 @@ book:
     - part: analysis/03-rarefaction/index.qmd
       chapters:
         - analysis/03-rarefaction/rarefaction.qmd
-    - part: analysis/04-baseline-demographics/index.qmd
-      chapters:
-        - analysis/04-baseline-demographics/baseline-char.qmd
     - part: analysis/05-baseline-diversity-analysis/index.qmd
       chapters:
         - analysis/05-baseline-diversity-analysis/bacterial-baseline-diversity-analysis.qmd
+    - part: analysis/04-baseline-demographics/index.qmd
+      chapters:
+        - analysis/04-baseline-demographics/baseline-char.qmd
     - part: "Longitudinal Alpha and Beta Diversity Analysis"
       chapters:
         - analysis/06-base-end-diversity-analysis/index.qmd
