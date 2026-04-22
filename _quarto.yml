@@ -140,10 +140,6 @@ custom-callout: #https://github.com/coatless-quarto/custom-callout/
     icon-symbol: 🗒
     color: "#BABBF1"
     collapse: true
-filters:
-  - custom-callout
-  - "_assets/foldableResults.lua"
-  - "_assets/toc.lua"
 knitr:
   opts_chunk:
     R.options:
